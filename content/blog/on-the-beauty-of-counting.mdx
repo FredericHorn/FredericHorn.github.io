@@ -1,0 +1,42 @@
+---
+title: "On the Beauty of Counting"
+date: "2024-11-15"
+description: "Why combinatorics is more than just counting — it's a way of seeing structure."
+tags: ["combinatorics", "essay"]
+---
+
+There is a common misunderstanding about combinatorics: that it is merely the art of counting things. While counting is certainly part of it, the deeper truth is that combinatorics is about *structure* — about recognizing when two seemingly different problems share the same skeleton, and when a simple rule generates unexpected complexity.
+
+## The surprise of small numbers
+
+Consider Pascal's triangle. Each entry is simply the sum of the two entries above it. This rule is about as simple as mathematics gets. And yet:
+
+- Color each entry by its remainder when divided by 2, and Sierpiński's triangle appears — a fractal of infinite self-similarity, emerging from a finite rule.
+- Sum the entries along shallow diagonals, and you get the Fibonacci sequence — a pattern that governs everything from phyllotaxis to financial models.
+- The entries themselves are binomial coefficients, which count the number of ways to choose subsets — the very foundation of probability theory.
+
+<Aside>
+Try the [Pascal's Triangle tool](/tools/pascal-triangle) to see these patterns interactively. Switch between different modular colorings and watch the fractal structure emerge.
+</Aside>
+
+## Structure, not just numbers
+
+The real power of combinatorics lies not in computing numbers, but in understanding *why* numbers behave the way they do. A bijective proof doesn't just show that two quantities are equal — it reveals that they are *the same thing* seen from different angles.
+
+This is what makes combinatorics feel like a language rather than a technique. It is a way of thinking about mathematics that emphasizes:
+
+1. **Pattern recognition** — seeing the same structure in different guises
+2. **Bijective reasoning** — proving equality by constructing explicit correspondences
+3. **Extremal arguments** — understanding what happens at the boundary
+
+<Theorem title="A classical example">
+The number of lattice paths from $(0,0)$ to $(n,n)$ that never cross below the diagonal is the $n$-th Catalan number $C_n = \frac{1}{n+1}\binom{2n}{n}$.
+</Theorem>
+
+This single number — the Catalan number — counts dozens of seemingly unrelated objects: valid parenthesizations, binary trees, polygon triangulations, non-crossing partitions. The fact that all these counts agree is not a coincidence. It reflects a deep structural unity.
+
+## Why this matters
+
+In my own research, combinatorial thinking is the thread that connects different areas: the geometry of polytopes, the algebra of group relaxations, and the optimization of discrete structures. The patterns we see in Pascal's triangle are, in a sense, microcosms of the patterns we seek in much harder objects.
+
+Mathematics is not just about solving problems. It is about *seeing clearly* — and combinatorics, perhaps more than any other field, trains this way of seeing.

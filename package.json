@@ -1,0 +1,38 @@
+{
+  "name": "math-academic-website",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@mdx-js/loader": "^3.0.0",
+    "@mdx-js/react": "^3.0.0",
+    "@next/mdx": "^14.2.0",
+    "d3": "^7.9.0",
+    "framer-motion": "^11.0.0",
+    "gray-matter": "^4.0.3",
+    "katex": "^0.16.9",
+    "lucide-react": "^1.28.0",
+    "next": "^14.2.0",
+    "next-mdx-remote": "^5.0.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "rehype-katex": "^7.0.0",
+    "remark-math": "^6.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.0",
+    "@types/d3": "^7.4.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.4.0"
+  }
+}
