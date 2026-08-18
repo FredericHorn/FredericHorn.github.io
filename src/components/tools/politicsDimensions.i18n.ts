@@ -5,6 +5,8 @@ export const politicsDimensionsText = {
     heroTitleLine2: 'does politics have?',
     heroSubtitle:
       "How many questions do you need to ask someone to pinpoint their party preference? And which ones? The usual picture shows two axis, but are they optimal?",
+    heroNote:
+      'This article aims to illustrate the principle of principal component analysis and to show the scientific findings from applying it to Wahl-O-Mat data. The bpb is not the author of this analysis.',
     heroBegin: 'begin',
     heroSkip: 'skip to results',
 
@@ -225,6 +227,8 @@ export const politicsDimensionsText = {
     heroTitleLine2: 'hat Politik?',
     heroSubtitle:
       'Wie viele Fragen muss man jemandem stellen, um dessen Parteipräferenz genau zu bestimmen? Und welche? Das übliche Modell zeigt zwei Achsen – aber sind diese auch optimal?',
+    heroNote:
+      'Dieser Artikel soll das Prinzip der Hauptkomponentenanalyse verdeutlichen und die wissenschaftlichen Erkenntnisse der Anwendung dieser auf die Daten des Wahl-O-Maten zeigen. Die bpb ist nicht die Urheberin dieser Analyse.',
     heroBegin: 'los geht\'s',
     heroSkip: 'zu den Ergebnissen',
 

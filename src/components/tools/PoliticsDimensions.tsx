@@ -520,8 +520,10 @@ function HeroCloud() {
         ctx.lineTo(cx + dx * len, cy + dy * len);
         ctx.stroke();
       };
+      ctx.globalAlpha = 0.35;
       drawAxis(ca, sa, C.coral, s * 1.15, 2);
       drawAxis(-sa, ca, C.teal, s * 0.4, 1.5);
+      ctx.globalAlpha = 1;
       // points
       state.current.pts.forEach((p) => {
         const x = p.u * ca - p.v * sa;
@@ -531,7 +533,7 @@ function HeroCloud() {
         const tw = 0.5 + 0.5 * Math.sin(state.current.t * 1.5 + p.r * 9);
         ctx.beginPath();
         ctx.arc(px, py, 2.1 + tw * 1.1, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(40,37,35,${0.18 + tw * 0.32})`;
+        ctx.fillStyle = `rgba(40,37,35,${(0.18 + tw * 0.32) * 0.4})`;
         ctx.fill();
       });
       raf = requestAnimationFrame(draw);
@@ -1758,6 +1760,16 @@ export function PoliticsDimensions() {
             }}
           >
             {t.heroSubtitle}
+          </p>
+          <p
+            style={{
+              fontSize: 'clamp(12.5px,1.3vw,14px)',
+              color: C.muted,
+              marginTop: 14,
+              lineHeight: 1.6,
+            }}
+          >
+            {t.heroNote}
           </p>
           <div
             style={{
