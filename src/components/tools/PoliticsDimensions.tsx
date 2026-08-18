@@ -461,7 +461,7 @@ const P = ({ children }: { children: React.ReactNode }) => (
       fontSize: 'clamp(16px,1.9vw,19px)',
       lineHeight: 1.72,
       color: C.ink2,
-      margin: '0 0 18px',
+      margin: '0 auto 18px',
       maxWidth: 720,
     }}
   >
@@ -1486,10 +1486,6 @@ function PartyMap({ svd, t }: { svd: any; t: PoliticsDimensionsText }) {
           );
         })}
       </svg>
-      <div style={{ fontFamily: MONO, fontSize: 12.5, color: C.muted, marginTop: 12 }}>
-          {t.partyMapCaption1} <br></br>
-          {t.partyMapCaption2}
-      </div>
     </div>
   );
 }
@@ -1837,7 +1833,7 @@ export function PoliticsDimensions() {
       </Scene>
 
       {/* 3 · tension */}
-      <Scene id="tension" center>
+      <Scene id="tension">
         <Reveal>
           <p
             style={{
@@ -1886,8 +1882,6 @@ export function PoliticsDimensions() {
           <Tex>{'\\{-1,0,+1\\}'}</Tex>{t.deepDiveObjectBody5}<K>i</K>{t.deepDiveObjectBody6}<Tex>{'A_{i*}'}</Tex>
           {t.deepDiveObjectBody7}<K>i</K>{t.deepDiveObjectBody8}
           <K>m</K>{t.deepDiveObjectBody9}<Tex>{'\\mathbb{R}^n'}</Tex>{t.deepDiveObjectBody10}
-          <K>n</K>{t.deepDiveObjectBody11}<Tex>{'\\mathbb{R}^m'}</Tex>
-          {t.deepDiveObjectBody12}
         </DeepDive>
       </Scene>
 
@@ -1958,8 +1952,6 @@ export function PoliticsDimensions() {
             {t.s04P3}
             <em>{t.s04Orthogonal}</em>
             {t.s04P3b}
-            <em>{t.s04First}</em>
-            {t.s04P3c}
           </P>
           <P>{t.s04P4}</P>
         </Reveal>
@@ -2019,27 +2011,14 @@ export function PoliticsDimensions() {
         </DeepDive>
       </Scene>
 
-      {/* 7 · why meaningful */}
-      <Scene id="why">
-        <Reveal>
-          <Eyebrow n="05">{t.s05Eyebrow}</Eyebrow>
-          <H2>{t.s05Title}</H2>
-          <P>{t.s05P1}</P>
-        </Reveal>
-      </Scene>
-
       {/* 8 · PCA */}
       <Scene id="pca">
         <Reveal>
-          <Eyebrow n="06">{t.s06Eyebrow}</Eyebrow>
+          <Eyebrow n="05">{t.s06Eyebrow}</Eyebrow>
           <H2>{t.s06Title}</H2>
           <P>{t.s06P1}</P>
           <P>{t.s06P2}</P>
-          <P>
-            {t.s06P3a}
-            <strong>{t.s06Pca}</strong>
-            {t.s06P3b}
-          </P>
+          <P>{t.s06P3a}</P>
         </Reveal>
         <DeepDive title={t.deepDiveCentering}>
           <CenteringToggle svd={svd} t={t} />
@@ -2091,14 +2070,18 @@ export function PoliticsDimensions() {
       {/* 9 · THE MAP (payoff) */}
       <Scene id="map">
         <Reveal>
-          <Eyebrow n="07">{t.s07Eyebrow}</Eyebrow>
+          <Eyebrow n="06">{t.s07Eyebrow}</Eyebrow>
           <H2>{t.s07Title}</H2>
           <P>{t.s07P1}</P>
+          <P>{t.s07P2}</P>
         </Reveal>
         <Reveal delay={0.1}>
           <div style={{ marginTop: 26 }}>
             <PartyMap svd={svd} t={t} />
           </div>
+        </Reveal>
+        <Reveal delay={0.15}>
+          <P>{t.s07P3}</P>
         </Reveal>
         <DeepDive title={t.deepDiveRankK}>
           <RankKMatrixHeatmap svd={svd} t={t} lang={lang} />
@@ -2154,7 +2137,7 @@ export function PoliticsDimensions() {
       {/* 10 · WHAT THE AXES ARE */}
       <Scene id="axes">
         <Reveal>
-          <Eyebrow n="08">{t.s08Eyebrow}</Eyebrow>
+          <Eyebrow n="07">{t.s08Eyebrow}</Eyebrow>
           <H2>{t.s08Title}</H2>
           <P>{t.s08P1}</P>
           <P>{t.s08P2}</P>
@@ -2169,7 +2152,7 @@ export function PoliticsDimensions() {
       {/* 11 · EXPLAINED VARIANCE */}
       <Scene id="variance">
         <Reveal>
-          <Eyebrow n="09">{t.s09Eyebrow}</Eyebrow>
+          <Eyebrow n="08">{t.s09Eyebrow}</Eyebrow>
           <H2>{t.s09Title}</H2>
           <P>{t.s09P1}</P>
         </Reveal>
@@ -2229,7 +2212,7 @@ export function PoliticsDimensions() {
       {/* 12 · THE ANSWER */}
       <Scene id="answer">
         <Reveal>
-          <Eyebrow n="10">{t.s10Eyebrow}</Eyebrow>
+          <Eyebrow n="09">{t.s10Eyebrow}</Eyebrow>
           <H2>{t.s10Title}</H2>
           <P>{t.s10P1}</P>
           <div style={{ display: 'grid', gap: 14, marginTop: 6, maxWidth: 720 }}>
@@ -2265,7 +2248,7 @@ export function PoliticsDimensions() {
       {/* 13 · LIMITS */}
       <Scene id="limits">
         <Reveal>
-          <Eyebrow n="11">{t.s11Eyebrow}</Eyebrow>
+          <Eyebrow n="10">{t.s11Eyebrow}</Eyebrow>
           <H2>{t.s11Title}</H2>
           <div style={{ display: 'grid', gap: 14, marginTop: 8 }}>
             {[
@@ -2301,39 +2284,9 @@ export function PoliticsDimensions() {
       {/* 14 · ZOOM OUT */}
       <Scene id="zoom" center>
         <Reveal>
-          <Eyebrow n="12">{t.s12Eyebrow}</Eyebrow>
+          <Eyebrow n="11">{t.s12Eyebrow}</Eyebrow>
           <H2>{t.s12Title}</H2>
           <P>{t.s12P1}</P>
-        </Reveal>
-      </Scene>
-
-      {/* 15 · CLOSE */}
-      <Scene id="close" center>
-        <Reveal>
-          <p
-            style={{
-              fontFamily: SERIF,
-              fontWeight: 600,
-              fontSize: 'clamp(28px,5vw,48px)',
-              letterSpacing: '-0.015em',
-              lineHeight: 1.18,
-              maxWidth: 760,
-              color: C.ink,
-            }}
-          >
-            {t.s13Title}
-          </p>
-          <p
-            style={{
-              fontSize: 'clamp(16px,2.2vw,20px)',
-              color: C.ink2,
-              marginTop: 22,
-              lineHeight: 1.6,
-              maxWidth: 760,
-            }}
-          >
-            {t.s13P1}
-          </p>
         </Reveal>
       </Scene>
 
@@ -2395,6 +2348,7 @@ export function PoliticsDimensions() {
               {t.footerP1e}
             </p>
             <p style={{ margin: 0 }}>{t.footerP2}</p>
+            <p style={{ margin: 0 }}>{t.footerAI}</p>
             <p style={{ margin: 0 }}>
               {t.footerP3a}
               <span style={{ color: C.ink }}>{t.footerP3Not}</span>
