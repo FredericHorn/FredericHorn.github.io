@@ -455,6 +455,10 @@ export function Planimeter() {
   /* ---- sheet / image -------------------------------------------------- */
   const [sample, setSample] = useState<Sample>(SAMPLES[0]);
   const [image, setImage] = useState<ImageState | null>(null);
+  /** overrides the current sheet's own map scale when set — editable from
+      the scale popover, so correcting or trying out a scale never requires
+      reopening the image dialog */
+  const [scaleOverride, setScaleOverride] = useState<number | null>(null);
 
   /* ---- interaction ---------------------------------------------------- */
   const [drag, setDrag] = useState<Drag>(null);
@@ -504,14 +508,39 @@ export function Planimeter() {
   }, [pole, tracer, reach]);
 
   /* ---------------------------------------------------------------------
-     Pointer → table coordinates
+     Pointer → table coordinates.
+
+     The <svg> keeps viewBox's default preserveAspectRatio (xMidYMid meet),
+     so unless the element's own box happens to match the table's 264:192
+     ratio exactly, the drawing is letterboxed — centred with blank bars on
+     two sides. Dividing by the raw element width/height (as before) ignored
+     those bars, so the mapped point drifted from the cursor by more the
+     further the window's aspect ratio was from the table's. This computes
+     the actual letterboxed content rect first.
      --------------------------------------------------------------------- */
   const toTable = useCallback((e: React.PointerEvent | PointerEvent): Vec | null => {
     const svg = svgRef.current;
     if (!svg) return null;
     const rect = svg.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * TABLE_W;
-    const y = ((e.clientY - rect.top) / rect.height) * TABLE_H;
+    const elRatio = rect.width / rect.height;
+    const tableRatio = TABLE_W / TABLE_H;
+
+    let contentW = rect.width;
+    let contentH = rect.height;
+    let offX = 0;
+    let offY = 0;
+    if (elRatio > tableRatio) {
+      // element is wider than the table: letterboxed left/right
+      contentW = rect.height * tableRatio;
+      offX = (rect.width - contentW) / 2;
+    } else if (elRatio < tableRatio) {
+      // element is taller than the table: letterboxed top/bottom
+      contentH = rect.width / tableRatio;
+      offY = (rect.height - contentH) / 2;
+    }
+
+    const x = ((e.clientX - rect.left - offX) / contentW) * TABLE_W;
+    const y = ((e.clientY - rect.top - offY) / contentH) * TABLE_H;
     return { x, y };
   }, []);
 
@@ -581,12 +610,37 @@ export function Planimeter() {
     }
   };
 
+  /* ---------------------------------------------------------------------
+     Pointer move is throttled to one update per animation frame.
+
+     A native pointermove can fire far faster than React can usefully
+     re-render this component (the SVG instrument alone is dozens of
+     elements, plus the measuring unit and, in maths mode, another panel).
+     Committing a fresh state update — and the render it triggers — for
+     every single event caused the visible lag and the cursor outrunning
+     the dragged part. Instead we stash only the latest point in a ref and
+     let one rAF per frame do the actual (comparatively expensive) work of
+     integrating the roll and updating state, so the update rate is capped
+     at the display's refresh rate no matter how fast events arrive.
+     --------------------------------------------------------------------- */
+  const pendingPointRef = useRef<Vec | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  const flushPointerMove = useCallback(() => {
+    rafRef.current = null;
+    const p = pendingPointRef.current;
+    if (!p) return;
+    if (drag === 'pole') setPole(p);
+    else if (drag === 'tracer') moveTracerTo(p);
+  }, [drag, moveTracerTo]);
+
   const onPointerMove = (e: React.PointerEvent) => {
     const p = toTable(e);
     if (!p) return;
 
     if (!drag) {
-      // hover detection for the moving-part rings
+      // hover detection for the moving-part rings — cheap, and only live
+      // while nothing is being dragged, so no throttling needed here.
       if (linkage) {
         if (dist(p, pole) < 9) setHover('pole');
         else if (dist(p, linkage.T) < 11) setHover('tracer');
@@ -597,14 +651,26 @@ export function Planimeter() {
       return;
     }
 
-    if (drag === 'pole') {
-      setPole(p);
-      return;
+    pendingPointRef.current = p;
+    if (rafRef.current === null) {
+      rafRef.current = requestAnimationFrame(flushPointerMove);
     }
-    if (drag === 'tracer') moveTracerTo(p);
   };
 
   const finishTrace = useCallback(() => {
+    // apply whatever the last throttled point was before ending the drag, so
+    // the final pixels of a fast release aren't lost, then stop the rAF loop
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    if (pendingPointRef.current) {
+      const p = pendingPointRef.current;
+      pendingPointRef.current = null;
+      if (drag === 'pole') setPole(p);
+      else if (drag === 'tracer') moveTracerTo(p);
+    }
+
     setDrag(null);
     if (mode !== 'tracing') return;
     setMode('idle');
@@ -628,7 +694,7 @@ export function Planimeter() {
         },
       ]);
     }
-  }, [mode, autoLog, traceStartReading, cal.k, image, sample, trace]);
+  }, [mode, autoLog, traceStartReading, cal.k, image, sample, trace, drag, moveTracerTo]);
 
   const onPointerUp = () => finishTrace();
 
@@ -640,13 +706,27 @@ export function Planimeter() {
     return () => window.removeEventListener('pointerup', up);
   }, [drag, finishTrace]);
 
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
   /* ---------------------------------------------------------------------
      Derived readings
      --------------------------------------------------------------------- */
   const meNow = mmToME(rollRef.current);
   const reading = readWheel(meNow);
 
-  const currentScaleDenom = image ? image.scaleDenom : sample.scaleDenom;
+  const currentScaleDenom = scaleOverride ?? (image ? image.scaleDenom : sample.scaleDenom);
+
+  /** the sample caption drawn on the sheet, with its trailing "1 : N" swapped
+      in for a live scale override so the label never shows a stale scale */
+  const sheetCaption = useMemo(() => {
+    const raw = sample.caption[lang === 'de' ? 'de' : 'en'];
+    if (scaleOverride === null) return raw;
+    return raw.replace(/1\s*:\s*[\d\s.,]+$/, `1 : ${scaleOverride.toLocaleString('de-DE')}`);
+  }, [sample, lang, scaleOverride]);
 
   /* ---- live result: start/diff/area for the run in progress or just closed.
      No manual entry — these track the simulation directly, the way the
@@ -754,7 +834,10 @@ export function Planimeter() {
           setShowTutorial(true);
         }}
         sample={sample}
-        setSample={setSample}
+        setSample={(s) => {
+          setSample(s);
+          setScaleOverride(null);
+        }}
         image={image}
         clearImage={() => setImage(null)}
         lang={lang}
@@ -890,7 +973,7 @@ export function Planimeter() {
                   fill={C.muted}
                   fontStyle="italic"
                 >
-                  {sample.caption[lang === 'de' ? 'de' : 'en']}
+                  {sheetCaption}
                 </text>
               </g>
             )}
@@ -1061,6 +1144,7 @@ export function Planimeter() {
           onClose={() => setShowImageDialog(false)}
           onApply={(img) => {
             setImage(img);
+            setScaleOverride(null);
             setShowImageDialog(false);
             clearTrace();
           }}
@@ -1072,6 +1156,7 @@ export function Planimeter() {
           calIdx={calIdx}
           setCalIdx={setCalIdx}
           currentScaleDenom={currentScaleDenom}
+          onSetScaleDenom={setScaleOverride}
           onClose={() => setShowScalePopover(false)}
         />
       )}
@@ -2639,9 +2724,11 @@ function HelpOverlay({ t, onClose }: { t: PlanimeterText; onClose: () => void })
 function Overlay({
   children,
   onClose,
+  maxWidth = 480,
 }: {
   children: React.ReactNode;
   onClose: () => void;
+  maxWidth?: number;
 }) {
   return (
     <div
@@ -2664,7 +2751,7 @@ function Overlay({
           border: `1px solid ${C.edge}`,
           borderRadius: 14,
           padding: '24px 26px',
-          maxWidth: 480,
+          maxWidth,
           width: '100%',
           boxShadow: '0 12px 40px rgba(40,37,35,0.18)',
           maxHeight: '86vh',
@@ -2955,20 +3042,32 @@ function ScalePopover({
   calIdx,
   setCalIdx,
   currentScaleDenom,
+  onSetScaleDenom,
   onClose,
 }: {
   t: PlanimeterText;
   calIdx: number;
   setCalIdx: (i: number) => void;
   currentScaleDenom: number;
+  onSetScaleDenom: (denom: number | null) => void;
   onClose: () => void;
 }) {
+  // the field is edited as free text so a half-typed number never gets
+  // stomped by re-formatting; it only commits back to state on blur/apply
+  const [denomInput, setDenomInput] = useState(String(currentScaleDenom));
+  useEffect(() => setDenomInput(String(currentScaleDenom)), [currentScaleDenom]);
+
+  const commitDenom = () => {
+    const n = parseInt(denomInput.replace(/[^0-9]/g, ''), 10);
+    onSetScaleDenom(Number.isFinite(n) && n > 0 ? n : 1);
+  };
+
   const recommendation = useMemo(
     () => recommendCalibration(currentScaleDenom),
     [currentScaleDenom]
   );
 
-  const realPerMEText = (m2: number) => {
+  const realAreaText = (m2: number) => {
     if (currentScaleDenom === 1) return null; // "real" == paper at 1:1, not useful here
     if (m2 >= 1e6) return `${fmt(m2 / 1e6, 3)} km²`;
     if (m2 >= 1e4) return `${fmt(m2 / 1e4, 4)} ha`;
@@ -2976,7 +3075,7 @@ function ScalePopover({
   };
 
   return (
-    <Overlay onClose={onClose}>
+    <Overlay onClose={onClose} maxWidth={580}>
       <div style={{ fontFamily: SERIF, fontSize: 22, fontWeight: 600, marginBottom: 6 }}>
         {t.scaleTitle}
       </div>
@@ -2984,30 +3083,55 @@ function ScalePopover({
         {t.scaleIntro}
       </p>
 
+      {/* the map scale itself — editable right here, no need to reopen the image dialog */}
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'baseline',
+          alignItems: 'center',
           background: C.soft,
           border: `1px solid ${C.edge}`,
           borderRadius: 8,
           padding: '8px 11px',
           marginBottom: 12,
+          gap: 10,
         }}
       >
         <span style={{ fontSize: 12, color: C.muted }}>
           {t.scaleMapScale} · {t.scaleCurrentSheet}
         </span>
-        <span style={{ fontFamily: MONO, fontSize: 14, color: C.ink }}>
-          {currentScaleDenom === 1 ? '1 : 1' : `1 : ${currentScaleDenom.toLocaleString('de-DE')}`}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ fontFamily: MONO, fontSize: 14, color: C.ink }}>1 :</span>
+          <input
+            value={denomInput}
+            onChange={(e) => setDenomInput(e.target.value.replace(/[^0-9]/g, ''))}
+            onBlur={commitDenom}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                commitDenom();
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+            inputMode="numeric"
+            style={{
+              width: 90,
+              fontFamily: MONO,
+              fontSize: 14,
+              padding: '3px 7px',
+              border: `1px solid ${C.edge}`,
+              borderRadius: 5,
+              background: C.panel,
+              textAlign: 'right',
+              color: C.ink,
+            }}
+          />
+        </div>
       </div>
 
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'auto auto 1fr auto',
+          gridTemplateColumns: 'auto auto auto minmax(112px,auto) auto',
           gap: '5px 10px',
           alignItems: 'center',
         }}
@@ -3024,6 +3148,7 @@ function ScalePopover({
         >
           <span>{t.armF}</span>
           <span>{t.factorK}</span>
+          <span>{t.scaleOnPaper}</span>
           <span>{t.scalePerME}</span>
           <span />
         </div>
@@ -3031,7 +3156,7 @@ function ScalePopover({
           const isRecommended = recommendation.index === i && currentScaleDenom !== 1;
           const isActive = calIdx === i;
           const realM2 = (c.k * currentScaleDenom * currentScaleDenom) / 1e4;
-          const realText = realPerMEText(realM2);
+          const realText = realAreaText(realM2);
           return (
             <React.Fragment key={c.f}>
               <span
@@ -3046,6 +3171,9 @@ function ScalePopover({
               </span>
               <span style={{ fontFamily: MONO, fontSize: 12.5, color: C.muted }}>
                 {c.label}
+              </span>
+              <span style={{ fontFamily: MONO, fontSize: 12, color: C.ink2 }}>
+                {fmt(c.k, 2)} cm²
               </span>
               <span
                 style={{

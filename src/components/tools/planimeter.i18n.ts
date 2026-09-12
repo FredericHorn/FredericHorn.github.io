@@ -115,9 +115,10 @@ export const planimeterText = {
     /* scale popover (opens on the hinge) */
     scaleTitle: 'Maßstab & Fahrarm',
     scaleIntro:
-      'Ein Messwerkschritt (1 ME) entspricht auf dem Papier k cm². In der Wirklichkeit sind das, je nach Kartenmaßstab, k·S² — deshalb lohnt sich pro Maßstab ein bestimmter Fahrarm.',
+      'Ein Messwerkschritt (1 ME) entspricht auf dem Papier immer k cm² — unabhängig vom Kartenmaßstab. In der Wirklichkeit sind das, je nach Kartenmaßstab S, k·S²: darum lohnt sich pro Maßstab ein bestimmter Fahrarm. Trag unten den Maßstab deiner Karte ein, dann zeigt die Tabelle beide Seiten nebeneinander.',
     scaleMapScale: 'Kartenmaßstab',
-    scaleCurrentSheet: 'aktuelles Blatt',
+    scaleCurrentSheet: 'aktuelles Blatt · zum Ändern eintippen',
+    scaleOnPaper: 'pro ME auf dem Papier',
     scalePerME: 'pro ME in Wirklichkeit',
     scaleRecommended: 'empfohlen',
     scaleUse: 'verwenden',
@@ -299,9 +300,10 @@ export const planimeterText = {
     /* scale popover (opens on the hinge) */
     scaleTitle: 'Scale & tracer arm',
     scaleIntro:
-      'One wheel unit (ME) is k cm² on the paper. In reality, depending on the map scale, that is k·S² — so each scale has a tracer-arm setting worth using.',
+      "One wheel unit (ME) is always k cm² on the paper, whatever the map's scale. In reality, depending on the map scale S, that is k·S² — so each scale has a tracer-arm setting worth using. Type your map's scale in below and the table shows both sides at once.",
     scaleMapScale: 'Map scale',
-    scaleCurrentSheet: 'current sheet',
+    scaleCurrentSheet: 'current sheet · type to change',
+    scaleOnPaper: 'per ME on paper',
     scalePerME: 'per ME in reality',
     scaleRecommended: 'recommended',
     scaleUse: 'use',
