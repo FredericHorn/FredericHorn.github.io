@@ -22,6 +22,13 @@ const tools = [
     tag: 'Linear Algebra · Interactive',
   },
   {
+    title: 'Planimeter',
+    description:
+      'A polar planimeter you can actually use. Place the pole, set the tracer arm, trace a contour — the measuring wheel earns every digit in real time.',
+    href: '/tools/planimeter',
+    tag: 'Green’s Theorem · Interactive',
+  },
+  {
     title: 'More tools coming',
     description: 'Additional interactive visualizations and mathematical explorations will appear here over time.',
     tag: 'Coming soon',

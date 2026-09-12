@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import 'katex/dist/katex.min.css';
 import { Navigation } from '@/components/layout/Navigation';
-import { Footer } from '@/components/layout/Footer';
+import { SiteFooter } from '@/components/layout/SiteFooter';
 import { LanguageProvider } from '@/lib/LanguageContext';
 
 export const metadata: Metadata = {
@@ -27,7 +27,7 @@ export default function RootLayout({
           <main className="flex-1">
             {children}
           </main>
-          <Footer />
+          <SiteFooter />
         </LanguageProvider>
       </body>
     </html>

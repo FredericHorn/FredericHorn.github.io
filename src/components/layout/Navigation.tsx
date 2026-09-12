@@ -34,6 +34,10 @@ export function Navigation() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const showLanguageToggle = pathname?.startsWith('/tools/politics-dimensions');
 
+  // Full-screen tools bring their own chrome and must not scroll; the site
+  // header would overlap their toolbar, so it steps aside on those routes.
+  const fullScreenTool = pathname?.startsWith('/tools/planimeter');
+
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -43,6 +47,8 @@ export function Navigation() {
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
+
+  if (fullScreenTool) return null;
 
   return (
     <header
