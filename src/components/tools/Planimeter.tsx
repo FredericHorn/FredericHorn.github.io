@@ -20,6 +20,7 @@ import {
   mmToME,
   readWheel,
   reachRange,
+  recommendCalibration,
   shoelace,
   WHEEL_CIRCUMFERENCE,
   zeroCircleArea,
@@ -144,6 +145,22 @@ function MoverRing({
         opacity={hot ? 0.45 : 0.18}
         strokeDasharray="1.5 2"
       />
+    </g>
+  );
+}
+
+/** a pulsing spotlight the tutorial drops on whichever part the current step is about */
+function TutorialRing({ at, r }: { at: Vec; r: number }) {
+  return (
+    <g pointerEvents="none">
+      <circle cx={at.x} cy={at.y} r={r} fill="none" stroke={C.accent} strokeWidth={0.9}>
+        <animate attributeName="r" values={`${r};${r + 4};${r}`} dur="1.6s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0.9;0.25;0.9" dur="1.6s" repeatCount="indefinite" />
+      </circle>
+      <circle cx={at.x} cy={at.y} r={r + 7} fill="none" stroke={C.accent} strokeWidth={0.4} opacity={0.35}>
+        <animate attributeName="r" values={`${r + 7};${r + 12};${r + 7}`} dur="1.6s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0.35;0;0.35" dur="1.6s" repeatCount="indefinite" />
+      </circle>
     </g>
   );
 }
@@ -392,6 +409,19 @@ type Drag = null | 'tracer' | 'pole';
 
 type Run = { id: number; start: number; end: number; k: number; scale: number };
 
+/** which instrument part each tutorial step highlights, if any */
+type TutorialFocus = 'pole' | 'hinge' | 'tracer' | 'result' | 'mathMode' | null;
+const TUTORIAL_FOCUS: TutorialFocus[] = [
+  null, // 1: intro
+  'pole', // 2: the pole
+  'hinge', // 3: scale & tracer arm
+  'tracer', // 4: the tracer
+  'tracer', // 5: now measure
+  'result', // 6: the result
+  'mathMode', // 7: maths mode
+];
+const TUTORIAL_STEPS = TUTORIAL_FOCUS.length;
+
 type ImageState = {
   src: string;
   /** mm per image pixel, set by the scale calibration */
@@ -439,11 +469,11 @@ export function Planimeter() {
   const [showHelp, setShowHelp] = useState(false);
   const [showZero, setShowZero] = useState(false);
   const [showImageDialog, setShowImageDialog] = useState(false);
+  const [showScalePopover, setShowScalePopover] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
 
-  /* ---- notepad -------------------------------------------------------- */
-  const [padStart, setPadStart] = useState('');
-  const [padEnd, setPadEnd] = useState('');
-  const [padNotes, setPadNotes] = useState('');
+  /* ---- result history (a closed run is logged automatically when auto-log is on) --- */
   const [runs, setRuns] = useState<Run[]>([]);
 
   /* ---- maths-mode live numbers ---------------------------------------- */
@@ -526,6 +556,15 @@ export function Planimeter() {
   const onPointerDown = (e: React.PointerEvent) => {
     const p = toTable(e);
     if (!p || !linkage) return;
+
+    // the hinge is a click target, not a drag handle: it opens the scale
+    // popover instead of moving anything, since on the real instrument you
+    // never touch the hinge — you set the arm length before you start.
+    if (dist(p, linkage.G) < 9) {
+      setShowScalePopover(true);
+      return;
+    }
+
     (e.target as Element).setPointerCapture?.(e.pointerId);
 
     if (dist(p, pole) < 9) {
@@ -538,7 +577,6 @@ export function Planimeter() {
       setMode('tracing');
       setTrace([linkage.T]);
       setTraceStartReading(readWheel(mmToME(rollRef.current)).value);
-      if (autoLog) setPadStart(readWheel(mmToME(rollRef.current)).text);
       return;
     }
   };
@@ -579,7 +617,6 @@ export function Planimeter() {
       trace.length > 8 && dist(trace[0], trace[trace.length - 1]) <= CLOSE_TOLERANCE;
 
     if (autoLog && closed && traceStartReading !== null) {
-      setPadEnd(endReading.text);
       setRuns((prev) => [
         ...prev,
         {
@@ -611,31 +648,22 @@ export function Planimeter() {
 
   const currentScaleDenom = image ? image.scaleDenom : sample.scaleDenom;
 
-  /** parse a four-digit notepad entry like "3472" or "3.472" into ME */
-  const parseReading = (s: string): number | null => {
-    const cleaned = s.replace(/[^0-9]/g, '');
-    if (!cleaned.length) return null;
-    const n = cleaned.padStart(4, '0').slice(-4);
-    return (
-      parseInt(n[0], 10) * 100 + parseInt(n.slice(1, 3), 10) + parseInt(n[3], 10) / 10
-    );
-  };
-
-  const padDiff = useMemo(() => {
-    const a = parseReading(padStart);
-    const b = parseReading(padEnd);
-    if (a === null || b === null) return null;
-    let d = b - a;
+  /* ---- live result: start/diff/area for the run in progress or just closed.
+     No manual entry — these track the simulation directly, the way the
+     notepad's numbers used to be typed in by hand from a real instrument. */
+  const liveDiff = useMemo(() => {
+    if (traceStartReading === null) return null;
+    let d = reading.value - traceStartReading;
     if (d < -500) d += 1000; // wheel wrapped forwards
     if (d > 500) d -= 1000;
     return d;
-  }, [padStart, padEnd]);
+  }, [traceStartReading, reading.value]);
 
-  const padAreaPaper = padDiff === null ? null : padDiff * cal.k; // cm²
-  const padAreaReal =
-    padAreaPaper === null
+  const liveAreaPaper = liveDiff === null ? null : liveDiff * cal.k; // cm²
+  const liveAreaReal =
+    liveAreaPaper === null
       ? null
-      : padAreaPaper * currentScaleDenom * currentScaleDenom * 1e-4; // cm²→m²
+      : liveAreaPaper * currentScaleDenom * currentScaleDenom * 1e-4; // cm²→m²
 
   /* ---- maths mode: compare against the true polygon area --------------- */
   const traceTrueArea = useMemo(() => {
@@ -676,20 +704,13 @@ export function Planimeter() {
     setTraceStartReading(null);
     setLastStep(null);
   };
-  const clearPad = () => {
-    setPadStart('');
-    setPadEnd('');
-    setPadNotes('');
-    setRuns([]);
-  };
-
-  const takeStart = () => setPadStart(reading.text);
-  const takeEnd = () => setPadEnd(reading.text);
+  const clearHistory = () => setRuns([]);
 
   /* =======================================================================
      RENDER
      ======================================================================= */
   const outline = image ? null : sample.outline;
+  const tutorialFocus: TutorialFocus = showTutorial ? TUTORIAL_FOCUS[tutorialStep] : null;
 
   return (
     <div
@@ -706,16 +727,18 @@ export function Planimeter() {
       }}
     >
       <style>{`
-        @media (max-width: 1280px) {
+        @media (max-width: 1500px) {
           .planimeter-subtitle { display: none; }
+        }
+        @media (max-width: 1180px) {
+          .planimeter-toggle-label { display: none; }
         }
       `}</style>
 
       <TopBar
         t={t}
         cal={cal}
-        calIdx={calIdx}
-        setCalIdx={setCalIdx}
+        onOpenScale={() => setShowScalePopover(true)}
         onImage={() => setShowImageDialog(true)}
         onZero={zeroWheel}
         onClear={clearTrace}
@@ -726,6 +749,10 @@ export function Planimeter() {
         showZero={showZero}
         setShowZero={setShowZero}
         onHelp={() => setShowHelp(true)}
+        onTutorial={() => {
+          setTutorialStep(0);
+          setShowTutorial(true);
+        }}
         sample={sample}
         setSample={setSample}
         image={image}
@@ -929,6 +956,7 @@ export function Planimeter() {
                 drag={drag}
                 t={t}
                 mathMode={mathMode}
+                tutorialFocus={tutorialFocus}
               />
             )}
 
@@ -990,24 +1018,19 @@ export function Planimeter() {
         >
           <MeasuringUnit me={meNow} t={t} />
 
-          <Notepad
+          <ResultPanel
             t={t}
-            padStart={padStart}
-            padEnd={padEnd}
-            setPadStart={setPadStart}
-            setPadEnd={setPadEnd}
-            padNotes={padNotes}
-            setPadNotes={setPadNotes}
-            diff={padDiff}
+            startReading={traceStartReading}
+            diff={liveDiff}
             k={cal.k}
-            areaPaper={padAreaPaper}
-            areaReal={padAreaReal}
+            areaPaper={liveAreaPaper}
+            areaReal={liveAreaReal}
             scaleDenom={currentScaleDenom}
-            onTakeStart={takeStart}
-            onTakeEnd={takeEnd}
-            onClear={clearPad}
+            closed={traceClosed}
             runs={runs}
             autoLog={autoLog}
+            onClearHistory={clearHistory}
+            tutorialFocus={tutorialFocus === 'result'}
           />
         </div>
 
@@ -1043,6 +1066,28 @@ export function Planimeter() {
           }}
         />
       )}
+      {showScalePopover && (
+        <ScalePopover
+          t={t}
+          calIdx={calIdx}
+          setCalIdx={setCalIdx}
+          currentScaleDenom={currentScaleDenom}
+          onClose={() => setShowScalePopover(false)}
+        />
+      )}
+      {showTutorial && (
+        <Tutorial
+          t={t}
+          step={tutorialStep}
+          setStep={setTutorialStep}
+          onClose={() => {
+            setShowTutorial(false);
+            setTutorialStep(0);
+          }}
+          onOpenScale={() => setShowScalePopover(true)}
+          onOpenMathMode={() => setMathMode(true)}
+        />
+      )}
     </div>
   );
 }
@@ -1058,6 +1103,7 @@ function Instrument({
   drag,
   t,
   mathMode,
+  tutorialFocus = null,
 }: {
   pole: Vec;
   linkage: Linkage;
@@ -1066,6 +1112,7 @@ function Instrument({
   drag: Drag;
   t: PlanimeterText;
   mathMode: boolean;
+  tutorialFocus?: TutorialFocus;
 }) {
   const { G, T, W, u, n } = linkage;
   void R;
@@ -1264,6 +1311,11 @@ function Instrument({
       <MoverRing at={W} r={6.5} active hot={hover === 'wheel'} color={C.brass} />
       <MoverRing at={T} r={8} active hot={hover === 'tracer' || drag === 'tracer'} color={C.red} />
 
+      {/* ---- tutorial spotlight: a pulsing ring on whatever the current step is about ---- */}
+      {tutorialFocus === 'pole' && <TutorialRing at={pole} r={9} />}
+      {tutorialFocus === 'hinge' && <TutorialRing at={G} r={7} />}
+      {tutorialFocus === 'tracer' && <TutorialRing at={T} r={9.5} />}
+
       {/* ---- labels, only while hovering the part ---- */}
       {hover && (
         <g pointerEvents="none">
@@ -1307,8 +1359,7 @@ function PartLabel({ at, text }: { at: Vec; text: string }) {
 function TopBar({
   t,
   cal,
-  calIdx,
-  setCalIdx,
+  onOpenScale,
   onImage,
   onZero,
   onClear,
@@ -1319,6 +1370,7 @@ function TopBar({
   showZero,
   setShowZero,
   onHelp,
+  onTutorial,
   sample,
   setSample,
   image,
@@ -1327,8 +1379,7 @@ function TopBar({
 }: {
   t: PlanimeterText;
   cal: (typeof CALIBRATIONS)[number];
-  calIdx: number;
-  setCalIdx: (i: number) => void;
+  onOpenScale: () => void;
   onImage: () => void;
   onZero: () => void;
   onClear: () => void;
@@ -1339,6 +1390,7 @@ function TopBar({
   showZero: boolean;
   setShowZero: (b: boolean) => void;
   onHelp: () => void;
+  onTutorial: () => void;
   sample: Sample;
   setSample: (s: Sample) => void;
   image: ImageState | null;
@@ -1350,8 +1402,8 @@ function TopBar({
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 14,
-        padding: '9px 14px',
+        gap: 7,
+        padding: '9px 12px',
         borderBottom: `1px solid ${C.edge}`,
         background: C.panel,
         flexWrap: 'nowrap',
@@ -1380,24 +1432,27 @@ function TopBar({
 
       <Divider />
 
-      {/* tracer-arm setting */}
+      {/* tracer-arm / scale — opens the same popover as clicking the hinge */}
       <Field label={t.armF}>
-        <select
-          value={calIdx}
-          onChange={(e) => setCalIdx(Number(e.target.value))}
-          style={selectStyle}
-        >
-          {CALIBRATIONS.map((c, i) => (
-            <option key={c.f} value={i}>
-              {fmt(c.f, 1)}
-            </option>
-          ))}
-        </select>
+        <button onClick={onOpenScale} style={{ ...selectStyle, cursor: 'pointer' }}>
+          {fmt(cal.f, 1)}
+        </button>
       </Field>
       <Field label={t.factorK}>
-        <span style={{ fontFamily: MONO, fontSize: 12.5, color: C.accent }}>
+        <button
+          onClick={onOpenScale}
+          style={{
+            fontFamily: MONO,
+            fontSize: 12.5,
+            color: C.accent,
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+          }}
+        >
           {cal.label} cm²/{t.me}
-        </span>
+        </button>
       </Field>
 
       <Divider />
@@ -1436,6 +1491,7 @@ function TopBar({
 
       <div style={{ flex: 1 }} />
       <LangToggle />
+      <Btn onClick={onTutorial} tone="accent">{t.tutorial}</Btn>
       <Btn onClick={onHelp}>{t.help}</Btn>
     </div>
   );
@@ -1522,7 +1578,7 @@ function Btn({
       style={{
         fontFamily: SANS,
         fontSize: 12,
-        padding: '5px 11px',
+        padding: '5px 9px',
         borderRadius: 6,
         border: `1px solid ${tone === 'accent' ? C.accent : C.edge}`,
         background: tone === 'accent' ? C.accent : C.soft,
@@ -1549,13 +1605,14 @@ function Toggle({
   return (
     <button
       onClick={() => set(!on)}
+      title={label}
       style={{
         display: 'flex',
         alignItems: 'center',
         gap: 6,
         fontFamily: SANS,
         fontSize: 12,
-        padding: '4px 9px 4px 6px',
+        padding: '4px 7px 4px 5px',
         borderRadius: 20,
         border: `1px solid ${on ? C.accent : C.edge}`,
         background: on ? 'rgba(26,92,58,0.08)' : C.soft,
@@ -1588,50 +1645,43 @@ function Toggle({
           }}
         />
       </span>
-      {label}
+      <span className="planimeter-toggle-label">{label}</span>
     </button>
   );
 }
 
 /* =========================================================================
-   NOTEPAD — a torn sheet you write your readings on
+   RESULT PANEL — live readout, no typing. Replaces the notepad: the start
+   reading, difference and area track the simulation directly, the moment a
+   contour closes, the way a real reading would still need writing down —
+   here it just appears.
    ========================================================================= */
-function Notepad({
+function ResultPanel({
   t,
-  padStart,
-  padEnd,
-  setPadStart,
-  setPadEnd,
-  padNotes,
-  setPadNotes,
+  startReading,
   diff,
   k,
   areaPaper,
   areaReal,
   scaleDenom,
-  onTakeStart,
-  onTakeEnd,
-  onClear,
+  closed,
   runs,
   autoLog,
+  onClearHistory,
+  tutorialFocus = false,
 }: {
   t: PlanimeterText;
-  padStart: string;
-  padEnd: string;
-  setPadStart: (s: string) => void;
-  setPadEnd: (s: string) => void;
-  padNotes: string;
-  setPadNotes: (s: string) => void;
+  startReading: number | null;
   diff: number | null;
   k: number;
   areaPaper: number | null;
   areaReal: number | null;
   scaleDenom: number;
-  onTakeStart: () => void;
-  onTakeEnd: () => void;
-  onClear: () => void;
+  closed: boolean;
   runs: Run[];
   autoLog: boolean;
+  onClearHistory: () => void;
+  tutorialFocus?: boolean;
 }) {
   const realText = (() => {
     if (areaReal === null) return '—';
@@ -1641,6 +1691,8 @@ function Notepad({
     return `${fmt(areaReal, 1)} m²`;
   })();
 
+  const hasRun = startReading !== null && diff !== null;
+
   return (
     <div
       style={{
@@ -1648,12 +1700,12 @@ function Notepad({
         minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
-        background:
-          'repeating-linear-gradient(to bottom, #fffef9 0px, #fffef9 21px, #eceadf 21px, #eceadf 22px)',
-        border: `1px solid ${C.edge}`,
+        background: C.panel,
+        border: `1px solid ${tutorialFocus ? C.accent : C.edge}`,
         borderRadius: 10,
-        boxShadow: '0 1px 2px rgba(40,37,35,0.05)',
         overflow: 'hidden',
+        boxShadow: tutorialFocus ? `0 0 0 3px rgba(26,92,58,0.15)` : 'none',
+        transition: 'box-shadow 200ms, border-color 200ms',
       }}
     >
       <div
@@ -1663,7 +1715,6 @@ function Notepad({
           justifyContent: 'space-between',
           padding: '8px 12px 6px',
           borderBottom: `1px solid ${C.edge}`,
-          background: 'rgba(255,255,255,0.6)',
         }}
       >
         <span
@@ -1675,267 +1726,197 @@ function Notepad({
             color: C.muted,
           }}
         >
-          {t.notepad}
+          {t.result}
           {autoLog && <span style={{ color: C.accent, marginLeft: 6 }}>● auto</span>}
         </span>
-        <button
-          onClick={onClear}
-          style={{
-            fontFamily: SANS,
-            fontSize: 10.5,
-            color: C.muted,
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            padding: 0,
-          }}
-        >
-          {t.clearPad}
-        </button>
+        {closed && (
+          <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.accent }}>
+            ✓ {t.closed}
+          </span>
+        )}
       </div>
 
-      <div style={{ padding: '9px 12px', display: 'grid', gap: 7, flexShrink: 0 }}>
-        <PadRow
-          label={t.end}
-          value={padEnd}
-          onChange={setPadEnd}
-          onTake={onTakeEnd}
-          takeLabel={t.take}
-        />
-        <PadRow
-          label={t.start}
-          value={padStart}
-          onChange={setPadStart}
-          onTake={onTakeStart}
-          takeLabel={t.take}
-          minus
-        />
-
-        <div style={{ height: 1, background: C.ink, opacity: 0.25, margin: '1px 0' }} />
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <span style={{ fontFamily: SANS, fontSize: 12, color: C.ink2 }}>{t.diff}</span>
-          <span style={{ fontFamily: MONO, fontSize: 15, color: C.ink }}>
-            {diff === null ? '—' : fmt(diff, 1)}
-            <span style={{ fontSize: 10, color: C.muted, marginLeft: 4 }}>{t.me}</span>
-          </span>
-        </div>
-
+      {!hasRun ? (
         <div
           style={{
-            fontFamily: MONO,
-            fontSize: 11,
-            color: C.accent,
-            textAlign: 'right',
-            opacity: 0.85,
+            flex: 1,
+            display: 'grid',
+            placeItems: 'center',
+            padding: '20px 16px',
+            fontSize: 12.5,
+            color: C.muted,
+            textAlign: 'center',
+            lineHeight: 1.6,
           }}
         >
-          {t.formula} = {fmt(k, 3)} · {diff === null ? 'm' : fmt(diff, 1)}
+          {t.resultHint}
         </div>
+      ) : (
+        <div style={{ padding: '10px 12px', display: 'grid', gap: 7, flexShrink: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span style={{ fontFamily: SANS, fontSize: 11.5, color: C.muted }}>{t.resultDiff}</span>
+            <span style={{ fontFamily: MONO, fontSize: 15, color: closed ? C.ink : C.faint }}>
+              {fmt(diff ?? 0, 1)}
+              <span style={{ fontSize: 10, color: C.muted, marginLeft: 4 }}>{t.me}</span>
+            </span>
+          </div>
 
+          <div
+            style={{
+              fontFamily: MONO,
+              fontSize: 11,
+              color: closed ? C.accent : C.faint,
+              textAlign: 'right',
+              opacity: 0.85,
+            }}
+          >
+            {t.formula} = {fmt(k, 3)} · {fmt(diff ?? 0, 1)}
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'baseline',
+              paddingTop: 3,
+              borderTop: `1px solid ${C.edge}`,
+            }}
+          >
+            <span style={{ fontFamily: SANS, fontSize: 11.5, color: C.muted }}>{t.onPaper}</span>
+            <span style={{ fontFamily: MONO, fontSize: 13.5, color: closed ? C.ink : C.faint }}>
+              {areaPaper === null ? '—' : `${fmt(Math.abs(areaPaper), 2)} cm²`}
+            </span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span style={{ fontFamily: SANS, fontSize: 11.5, color: C.muted }}>
+              {t.inReality}
+              {scaleDenom !== 1 && (
+                <span style={{ fontFamily: MONO, fontSize: 9.5, marginLeft: 4 }}>
+                  1:{scaleDenom.toLocaleString('de-DE')}
+                </span>
+              )}
+            </span>
+            <span
+              style={{
+                fontFamily: MONO,
+                fontSize: 15,
+                color: closed ? C.accent : C.faint,
+                fontWeight: 600,
+              }}
+            >
+              {closed ? realText : '—'}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* history of closed, auto-logged runs */}
+      <div
+        style={{
+          padding: '7px 12px',
+          borderTop: `1px solid ${C.edge}`,
+          background: C.soft,
+          flexShrink: 0,
+          maxHeight: 130,
+          overflowY: 'auto',
+        }}
+      >
         <div
           style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'baseline',
-            paddingTop: 3,
-            borderTop: `1px solid ${C.edge}`,
+            marginBottom: 4,
           }}
         >
-          <span style={{ fontFamily: SANS, fontSize: 11.5, color: C.muted }}>{t.onPaper}</span>
-          <span style={{ fontFamily: MONO, fontSize: 13.5, color: C.ink }}>
-            {areaPaper === null ? '—' : `${fmt(areaPaper, 2)} cm²`}
-          </span>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <span style={{ fontFamily: SANS, fontSize: 11.5, color: C.muted }}>
-            {t.inReality}
-            {scaleDenom !== 1 && (
-              <span style={{ fontFamily: MONO, fontSize: 9.5, marginLeft: 4 }}>
-                1:{scaleDenom.toLocaleString('de-DE')}
-              </span>
-            )}
-          </span>
-          <span style={{ fontFamily: MONO, fontSize: 15, color: C.accent, fontWeight: 600 }}>
-            {realText}
-          </span>
-        </div>
-      </div>
-
-      {/* recorded runs */}
-      {runs.length > 0 && (
-        <div
-          style={{
-            padding: '6px 12px',
-            borderTop: `1px solid ${C.edge}`,
-            background: 'rgba(255,255,255,0.5)',
-            flexShrink: 0,
-            maxHeight: 92,
-            overflowY: 'auto',
-          }}
-        >
-          <div
+          <span
             style={{
               fontFamily: MONO,
               fontSize: 8.5,
               letterSpacing: 1.2,
               textTransform: 'uppercase',
               color: C.muted,
-              marginBottom: 3,
             }}
           >
-            {t.runs}
-          </div>
-          {runs.map((r, i) => {
-            let d = r.end - r.start;
-            if (d < -500) d += 1000;
-            if (d > 500) d -= 1000;
-            return (
+            {t.history}
+          </span>
+          {runs.length > 0 && (
+            <button
+              onClick={onClearHistory}
+              style={{
+                fontFamily: SANS,
+                fontSize: 10,
+                color: C.muted,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+              }}
+            >
+              {t.clearHistory}
+            </button>
+          )}
+        </div>
+
+        {runs.length === 0 ? (
+          <div style={{ fontSize: 11, color: C.faint, fontStyle: 'italic' }}>{t.noHistory}</div>
+        ) : (
+          <>
+            {runs.map((r, i) => {
+              let d = r.end - r.start;
+              if (d < -500) d += 1000;
+              if (d > 500) d -= 1000;
+              return (
+                <div
+                  key={r.id}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontFamily: MONO,
+                    fontSize: 10.5,
+                    color: C.ink2,
+                    padding: '1px 0',
+                  }}
+                >
+                  <span style={{ color: C.muted }}>{i + 1}</span>
+                  <span>
+                    {fmt(r.end, 1)} − {fmt(r.start, 1)} = {fmt(d, 1)}
+                  </span>
+                  <span style={{ color: C.accent }}>{fmt(d * r.k, 2)} cm²</span>
+                </div>
+              );
+            })}
+            {runs.length > 1 && (
               <div
-                key={r.id}
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
                   fontFamily: MONO,
-                  fontSize: 10.5,
-                  color: C.ink2,
-                  padding: '1px 0',
+                  fontSize: 11,
+                  color: C.ink,
+                  borderTop: `1px solid ${C.edge}`,
+                  marginTop: 3,
+                  paddingTop: 3,
                 }}
               >
-                <span style={{ color: C.muted }}>{i + 1}</span>
-                <span>
-                  {fmt(r.end, 1)} − {fmt(r.start, 1)} = {fmt(d, 1)}
+                <span style={{ color: C.muted }}>{t.mean}</span>
+                <span style={{ color: C.accent, fontWeight: 600 }}>
+                  {fmt(
+                    runs.reduce((a, r) => {
+                      let d = r.end - r.start;
+                      if (d < -500) d += 1000;
+                      if (d > 500) d -= 1000;
+                      return a + d * r.k;
+                    }, 0) / runs.length,
+                    2
+                  )}{' '}
+                  cm²
                 </span>
-                <span style={{ color: C.accent }}>{fmt(d * r.k, 2)} cm²</span>
               </div>
-            );
-          })}
-          {runs.length > 1 && (
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontFamily: MONO,
-                fontSize: 11,
-                color: C.ink,
-                borderTop: `1px solid ${C.edge}`,
-                marginTop: 3,
-                paddingTop: 3,
-              }}
-            >
-              <span style={{ color: C.muted }}>{t.mean}</span>
-              <span style={{ color: C.accent, fontWeight: 600 }}>
-                {fmt(
-                  runs.reduce((a, r) => {
-                    let d = r.end - r.start;
-                    if (d < -500) d += 1000;
-                    if (d > 500) d -= 1000;
-                    return a + d * r.k;
-                  }, 0) / runs.length,
-                  2
-                )}{' '}
-                cm²
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* free scratch area */}
-      <div style={{ flex: 1, minHeight: 40, display: 'flex', flexDirection: 'column' }}>
-        <div
-          style={{
-            fontFamily: MONO,
-            fontSize: 8.5,
-            letterSpacing: 1.2,
-            textTransform: 'uppercase',
-            color: C.muted,
-            padding: '5px 12px 2px',
-            borderTop: `1px solid ${C.edge}`,
-          }}
-        >
-          {t.notes}
-        </div>
-        <textarea
-          value={padNotes}
-          onChange={(e) => setPadNotes(e.target.value)}
-          placeholder={t.notesPlaceholder}
-          spellCheck={false}
-          style={{
-            flex: 1,
-            minHeight: 0,
-            resize: 'none',
-            border: 'none',
-            outline: 'none',
-            background: 'transparent',
-            padding: '2px 12px 10px',
-            fontFamily: MONO,
-            fontSize: 12,
-            lineHeight: '22px',
-            color: C.ink2,
-          }}
-        />
+            )}
+          </>
+        )}
       </div>
-    </div>
-  );
-}
-
-function PadRow({
-  label,
-  value,
-  onChange,
-  onTake,
-  takeLabel,
-  minus,
-}: {
-  label: string;
-  value: string;
-  onChange: (s: string) => void;
-  onTake: () => void;
-  takeLabel: string;
-  minus?: boolean;
-}) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-      <span style={{ fontFamily: SANS, fontSize: 12, color: C.ink2, flex: 1 }}>
-        {minus && <span style={{ color: C.muted, marginRight: 3 }}>−</span>}
-        {label}
-      </span>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value.replace(/[^0-9.,]/g, '').slice(0, 5))}
-        placeholder="0000"
-        inputMode="numeric"
-        style={{
-          width: 62,
-          fontFamily: MONO,
-          fontSize: 13.5,
-          textAlign: 'right',
-          border: 'none',
-          borderBottom: `1px solid ${C.faint}`,
-          background: 'transparent',
-          outline: 'none',
-          color: C.ink,
-          padding: '1px 2px',
-        }}
-      />
-      <button
-        onClick={onTake}
-        title={takeLabel}
-        style={{
-          fontFamily: SANS,
-          fontSize: 10,
-          padding: '2px 6px',
-          borderRadius: 4,
-          border: `1px solid ${C.edge}`,
-          background: C.soft,
-          color: C.muted,
-          cursor: 'pointer',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        ↵
-      </button>
     </div>
   );
 }
@@ -1943,6 +1924,8 @@ function PadRow({
 /* =========================================================================
    MATHS PANEL
    ========================================================================= */
+type MathTab = 'linear' | 'shapes' | 'polar' | 'live';
+
 function MathsPanel({
   t,
   L,
@@ -1973,6 +1956,8 @@ function MathsPanel({
   lang: string;
 }) {
   void k;
+  const [tab, setTab] = useState<MathTab>('linear');
+
   /* measured area from the roll since the trace began */
   const measured = useMemo(() => {
     // only a closed contour has a meaningful area to report
@@ -1990,32 +1975,411 @@ function MathsPanel({
   const err =
     measured !== null && shownTrue ? ((Math.abs(measured) - shownTrue) / shownTrue) * 100 : null;
 
+  const TABS: { id: MathTab; label: string }[] = [
+    { id: 'linear', label: t.mathTabLinear },
+    { id: 'shapes', label: t.mathTabShapes },
+    { id: 'polar', label: t.mathTabPolar },
+    { id: 'live', label: t.mathTabLive },
+  ];
+
   return (
     <div
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 9,
         minHeight: 0,
-        overflowY: 'auto',
         background: C.panel,
         border: `1px solid ${C.edge}`,
         borderRadius: 12,
-        padding: '12px 13px',
+        overflow: 'hidden',
       }}
     >
       <div
         style={{
           fontFamily: MONO,
           fontSize: 9.5,
-          letterSpacing: 1.6,
+          letterSpacing: 1.4,
           textTransform: 'uppercase',
           color: C.accent,
+          padding: '11px 13px 8px',
+          borderBottom: `1px solid ${C.edge}`,
         }}
       >
-        {t.mathTitle}
+        {t.mathIntroTitle}
       </div>
 
+      {/* tabs */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 3,
+          padding: '7px 8px',
+          borderBottom: `1px solid ${C.edge}`,
+          background: C.soft,
+        }}
+      >
+        {TABS.map((tb) => (
+          <button
+            key={tb.id}
+            onClick={() => setTab(tb.id)}
+            style={{
+              flex: 1,
+              fontFamily: MONO,
+              fontSize: 9.5,
+              padding: '5px 4px',
+              borderRadius: 6,
+              border: `1px solid ${tab === tb.id ? C.accent : 'transparent'}`,
+              background: tab === tb.id ? 'rgba(26,92,58,0.09)' : 'transparent',
+              color: tab === tb.id ? C.accent : C.muted,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {tb.label}
+          </button>
+        ))}
+      </div>
+
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          padding: '12px 13px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+        }}
+      >
+        {tab === 'linear' && <MathLinearTab t={t} />}
+        {tab === 'shapes' && <MathShapesTab t={t} />}
+        {tab === 'polar' && <MathPolarTab t={t} R={R} L={L} />}
+        {tab === 'live' && (
+          <MathLiveTab
+            t={t}
+            lang={lang}
+            lastStep={lastStep}
+            rollMM={rollMM}
+            poleInside={poleInside}
+            R={R}
+            L={L}
+            shownTrue={shownTrue}
+            measured={measured}
+            err={err}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---- Tab 1: the linear planimeter (section 3.1) ------------------------ */
+function MathLinearTab({ t }: { t: PlanimeterText }) {
+  return (
+    <>
+      <div style={{ fontFamily: SERIF, fontSize: 15, fontWeight: 600, color: C.ink }}>
+        {t.mathLinTitle}
+      </div>
+      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: C.ink2 }}>{t.mathLinP1}</p>
+
+      <LinearDiagram />
+
+      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: C.ink2 }}>{t.mathLinP2}</p>
+      <div
+        style={{
+          background: 'rgba(26,92,58,0.05)',
+          border: `1px solid rgba(26,92,58,0.18)`,
+          borderRadius: 8,
+          padding: '9px 11px',
+          fontFamily: SERIF,
+          fontSize: 16,
+          color: C.accent,
+          textAlign: 'center',
+        }}
+      >
+        {t.mathLinFormula}
+      </div>
+      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: C.ink2 }}>{t.mathLinP3}</p>
+    </>
+  );
+}
+
+/** the ruler slides up by m, sweeping a k×m rectangle; the wheel at one end
+    rolls exactly m while the arm itself only translates, never rotates */
+function LinearDiagram() {
+  const x0 = 34,
+    x1 = 150,
+    y0 = 82,
+    y1 = 26,
+    k = x1 - x0;
+  void k;
+  return (
+    <svg viewBox="0 0 190 100" style={{ width: '100%', display: 'block' }}>
+      {/* swept rectangle */}
+      <rect
+        x={x0}
+        y={y1}
+        width={x1 - x0}
+        height={y0 - y1}
+        fill={C.accent}
+        opacity={0.08}
+        stroke={C.accent}
+        strokeWidth={0.6}
+        strokeDasharray="3 2"
+      />
+      {/* start position of the ruler */}
+      <line x1={x0} y1={y0} x2={x1} y2={y0} stroke={C.pencil} strokeWidth={1.4} opacity={0.5} />
+      {/* end position of the ruler */}
+      <line x1={x0} y1={y1} x2={x1} y2={y1} stroke={C.ink} strokeWidth={1.8} />
+      {/* wheel at the end, start and end */}
+      <circle cx={x1} cy={y0} r={3} fill="none" stroke={C.brass} strokeWidth={1} opacity={0.5} />
+      <circle cx={x1} cy={y1} r={3} fill={C.brass} />
+      {/* upward arrow for m */}
+      <line
+        x1={x1 + 14}
+        y1={y0}
+        x2={x1 + 14}
+        y2={y1}
+        stroke={C.red}
+        strokeWidth={0.9}
+        markerEnd="url(#mathArrow)"
+      />
+      <text x={x1 + 19} y={(y0 + y1) / 2 + 3} fontFamily={SERIF} fontStyle="italic" fontSize={11} fill={C.red}>
+        m
+      </text>
+      {/* k label along the arm */}
+      <text x={(x0 + x1) / 2} y={y1 - 7} textAnchor="middle" fontFamily={SERIF} fontStyle="italic" fontSize={11} fill={C.ink}>
+        k
+      </text>
+      {/* area label */}
+      <text x={(x0 + x1) / 2} y={(y0 + y1) / 2 + 4} textAnchor="middle" fontFamily={SERIF} fontStyle="italic" fontSize={12} fill={C.accent}>
+        A = k·m
+      </text>
+      <defs>
+        <marker id="mathArrow" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 z" fill={C.red} />
+        </marker>
+      </defs>
+    </svg>
+  );
+}
+
+/* ---- Tab 2: from rectangles to any shape (section 3.2) ------------------ */
+function MathShapesTab({ t }: { t: PlanimeterText }) {
+  return (
+    <>
+      <div style={{ fontFamily: SERIF, fontSize: 15, fontWeight: 600, color: C.ink }}>
+        {t.mathShapesTitle}
+      </div>
+      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: C.ink2 }}>{t.mathShapesP1}</p>
+
+      <ShapesDiagram caption={t.mathShapesCaption} />
+
+      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: C.ink2 }}>{t.mathShapesP2}</p>
+      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: C.ink2 }}>{t.mathShapesP3}</p>
+    </>
+  );
+}
+
+/** two adjacent rectangles sharing an inner edge, with opposite arrows on
+    that edge showing why the two contributions cancel */
+function ShapesDiagram({ caption }: { caption: string }) {
+  const y0 = 20,
+    y1 = 78;
+  const xs = [24, 78, 132, 166];
+  // captions vary a lot in length across languages; wrap near the midpoint
+  // on a word boundary rather than letting long translations run off the
+  // narrow viewBox (SVG text does not wrap on its own)
+  const words = caption.split(' ');
+  let line1 = '';
+  let wi = 0;
+  while (wi < words.length && (line1 + words[wi]).length < caption.length / 2 + 4) {
+    line1 += (line1 ? ' ' : '') + words[wi];
+    wi++;
+  }
+  const line2 = words.slice(wi).join(' ');
+  return (
+    <svg viewBox="0 0 190 100" style={{ width: '100%', display: 'block' }}>
+      {/* three rectangles of varying height, approximating a curved cap */}
+      {[
+        { x0: xs[0], x1: xs[1], top: 34 },
+        { x0: xs[1], x1: xs[2], top: 20 },
+        { x0: xs[2], x1: xs[3], top: 40 },
+      ].map((r, i) => (
+        <rect
+          key={i}
+          x={r.x0}
+          y={r.top}
+          width={r.x1 - r.x0}
+          height={y1 - r.top}
+          fill={C.accent}
+          opacity={0.07}
+          stroke={C.ink}
+          strokeWidth={1}
+        />
+      ))}
+      {/* curved outline they approximate */}
+      <path
+        d={`M ${xs[0]} ${y1} L ${xs[0]} 42 Q ${(xs[0] + xs[1]) / 2} 24 ${xs[1]} 27 Q ${(xs[1] + xs[2]) / 2} 12 ${xs[2]} 24 Q ${(xs[2] + xs[3]) / 2} 34 ${xs[3]} 44 L ${xs[3]} ${y1} Z`}
+        fill="none"
+        stroke={C.red}
+        strokeWidth={1}
+        strokeDasharray="2 2"
+        opacity={0.7}
+      />
+      {/* shared inner edges with opposite-direction arrows */}
+      {[xs[1], xs[2]].map((x, i) => (
+        <g key={i}>
+          <line x1={x} y1={24} x2={x} y2={y1} stroke={C.muted} strokeWidth={0.6} />
+          <line
+            x1={x - 4}
+            y1={40}
+            x2={x - 4}
+            y2={30}
+            stroke={C.accent}
+            strokeWidth={0.9}
+            markerEnd="url(#shapesArrowUp)"
+          />
+          <line
+            x1={x + 4}
+            y1={55}
+            x2={x + 4}
+            y2={65}
+            stroke={C.accent}
+            strokeWidth={0.9}
+            markerEnd="url(#shapesArrowDown)"
+          />
+        </g>
+      ))}
+      <text x={95} y={88} textAnchor="middle" fontFamily={SANS} fontSize={7.6} fill={C.muted}>
+        <tspan x={95} dy={0}>{line1}</tspan>
+        <tspan x={95} dy={9.5}>{line2}</tspan>
+      </text>
+      <defs>
+        <marker id="shapesArrowUp" markerWidth="5" markerHeight="5" refX="2.5" refY="4" orient="auto">
+          <path d="M0,5 L2.5,0 L5,5 z" fill={C.accent} />
+        </marker>
+        <marker id="shapesArrowDown" markerWidth="5" markerHeight="5" refX="2.5" refY="1" orient="auto">
+          <path d="M0,0 L2.5,5 L5,0 z" fill={C.accent} />
+        </marker>
+      </defs>
+    </svg>
+  );
+}
+
+/* ---- Tab 3: the pole and the zero circle (section 3.3-3.4) -------------- */
+function MathPolarTab({ t, R, L }: { t: PlanimeterText; R: number; L: number }) {
+  return (
+    <>
+      <div style={{ fontFamily: SERIF, fontSize: 15, fontWeight: 600, color: C.ink }}>
+        {t.mathPolarTitle}
+      </div>
+      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: C.ink2 }}>{t.mathPolarP1}</p>
+
+      <PolarDiagram outsideLabel={t.mathPolarOutsideLabel} insideLabel={t.mathPolarInsideLabel} />
+
+      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: C.ink2 }}>{t.mathPolarP2}</p>
+      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: C.ink2 }}>{t.mathPolarP3}</p>
+
+      <div
+        style={{
+          background: 'rgba(139,106,19,0.07)',
+          border: `1px solid rgba(139,106,19,0.25)`,
+          borderRadius: 8,
+          padding: '8px 10px',
+          fontSize: 11.5,
+          lineHeight: 1.55,
+          color: C.ink2,
+        }}
+      >
+        {t.mathPolarNote}
+        <div style={{ fontFamily: MONO, fontSize: 11, color: C.brass, marginTop: 4 }}>
+          π(R² + L² − 2Ld) = {fmt(zeroCircleArea(R, L, WHEEL_OFFSET) / 100, 2)} cm²
+        </div>
+      </div>
+    </>
+  );
+}
+
+/** the polar linkage with the pole outside vs. inside the traced contour,
+    illustrating that the arm's net rotation is what differs between the two.
+    Captions wrap onto two lines via <tspan> since translated text is often
+    longer than English and must not run past its half of the diagram. */
+function PolarDiagram({ outsideLabel, insideLabel }: { outsideLabel: string; insideLabel: string }) {
+  // split each caption near its midpoint, on a word boundary, so it fits
+  // in the ~90px-wide half of the diagram it is captioning
+  const wrap = (s: string) => {
+    const words = s.split(' ');
+    if (words.length < 2) return [s, ''];
+    let line1 = '';
+    let i = 0;
+    while (i < words.length && (line1 + words[i]).length < s.length / 2 + 3) {
+      line1 += (line1 ? ' ' : '') + words[i];
+      i++;
+    }
+    return [line1 || words[0], words.slice(line1 ? i : 1).join(' ')];
+  };
+  const [out1, out2] = wrap(outsideLabel);
+  const [in1, in2] = wrap(insideLabel);
+
+  return (
+    <svg viewBox="0 0 190 112" style={{ width: '100%', display: 'block' }}>
+      {/* pole outside case */}
+      <g>
+        <circle cx={28} cy={62} r={34} fill="none" stroke={C.pencil} strokeWidth={0.7} strokeDasharray="2 2" opacity={0.6} />
+        <circle cx={12} cy={62} r={3} fill={C.steelDark} />
+        <line x1={12} y1={62} x2={45} y2={44} stroke={C.steel} strokeWidth={1.6} />
+        <line x1={45} y1={44} x2={62} y2={32} stroke={C.ink} strokeWidth={2} />
+        <circle cx={45} cy={44} r={1.6} fill={C.steelDark} />
+        <circle cx={62} cy={32} r={2} fill={C.red} />
+        <text x={28} y={100} textAnchor="middle" fontFamily={SANS} fontSize={7.6} fill={C.muted}>
+          <tspan x={28} dy={0}>{out1}</tspan>
+          <tspan x={28} dy={10}>{out2}</tspan>
+        </text>
+      </g>
+      {/* pole inside case */}
+      <g transform="translate(100,0)">
+        <circle cx={45} cy={50} r={27} fill="none" stroke={C.pencil} strokeWidth={0.7} strokeDasharray="2 2" opacity={0.6} />
+        <circle cx={45} cy={50} r={3} fill={C.steelDark} />
+        <line x1={45} y1={50} x2={68} y2={33} stroke={C.steel} strokeWidth={1.6} />
+        <line x1={68} y1={33} x2={82} y2={49} stroke={C.ink} strokeWidth={2} />
+        <circle cx={68} cy={33} r={1.6} fill={C.steelDark} />
+        <circle cx={82} cy={49} r={2} fill={C.red} />
+        <text x={45} y={100} textAnchor="middle" fontFamily={SANS} fontSize={7.6} fill={C.muted}>
+          <tspan x={45} dy={0}>{in1}</tspan>
+          <tspan x={45} dy={10}>{in2}</tspan>
+        </text>
+      </g>
+    </svg>
+  );
+}
+
+/* ---- Tab 4: the previous live decomposition + verification ------------- */
+function MathLiveTab({
+  t,
+  lang,
+  lastStep,
+  rollMM,
+  poleInside,
+  R,
+  L,
+  shownTrue,
+  measured,
+  err,
+}: {
+  t: PlanimeterText;
+  lang: string;
+  lastStep: { perp: number; along: number } | null;
+  rollMM: number;
+  poleInside: boolean;
+  R: number;
+  L: number;
+  shownTrue: number | null;
+  measured: number | null;
+  err: number | null;
+}) {
+  return (
+    <>
       <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6, color: C.ink2 }}>{t.mathIntro}</p>
 
       {/* live decomposition */}
@@ -2039,18 +2403,8 @@ function MathsPanel({
         >
           {t.mathLive}
         </div>
-        <Bar
-          label={t.mathPerp}
-          value={lastStep?.perp ?? 0}
-          max={1.6}
-          color={C.accent}
-        />
-        <Bar
-          label={t.mathAlong}
-          value={lastStep?.along ?? 0}
-          max={1.6}
-          color={C.faint}
-        />
+        <Bar label={t.mathPerp} value={lastStep?.perp ?? 0} max={1.6} color={C.accent} />
+        <Bar label={t.mathAlong} value={lastStep?.along ?? 0} max={1.6} color={C.faint} />
         <div
           style={{
             display: 'flex',
@@ -2122,20 +2476,13 @@ function MathsPanel({
           marginTop: 'auto',
         }}
       >
-        <Row
-          label={t.mathTrue}
-          value={shownTrue === null ? '—' : `${fmt(shownTrue / 100, 2)} cm²`}
-        />
+        <Row label={t.mathTrue} value={shownTrue === null ? '—' : `${fmt(shownTrue / 100, 2)} cm²`} />
         <Row
           label={t.mathMeasured}
           value={measured === null ? '—' : `${fmt(Math.abs(measured) / 100, 2)} cm²`}
           accent
         />
-        <Row
-          label={t.mathError}
-          value={err === null ? '—' : `${err > 0 ? '+' : ''}${fmt(err, 2)} %`}
-          muted
-        />
+        <Row label={t.mathError} value={err === null ? '—' : `${err > 0 ? '+' : ''}${fmt(err, 2)} %`} muted />
         <div
           style={{
             fontSize: 10.5,
@@ -2151,7 +2498,7 @@ function MathsPanel({
             : "The “true” area comes from the shoelace formula over your trace — the planimeter never sees it."}
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -2597,3 +2944,347 @@ const pillStyle = (on: boolean): React.CSSProperties => ({
   color: on ? C.accent : C.ink2,
   cursor: 'pointer',
 });
+
+/* =========================================================================
+   SCALE POPOVER — opens on the hinge. Shows which tracer-arm setting suits
+   the sheet's map scale, and why: one wheel unit is k cm² on paper, which
+   is k·S² cm² of real ground once you account for the map scale S.
+   ========================================================================= */
+function ScalePopover({
+  t,
+  calIdx,
+  setCalIdx,
+  currentScaleDenom,
+  onClose,
+}: {
+  t: PlanimeterText;
+  calIdx: number;
+  setCalIdx: (i: number) => void;
+  currentScaleDenom: number;
+  onClose: () => void;
+}) {
+  const recommendation = useMemo(
+    () => recommendCalibration(currentScaleDenom),
+    [currentScaleDenom]
+  );
+
+  const realPerMEText = (m2: number) => {
+    if (currentScaleDenom === 1) return null; // "real" == paper at 1:1, not useful here
+    if (m2 >= 1e6) return `${fmt(m2 / 1e6, 3)} km²`;
+    if (m2 >= 1e4) return `${fmt(m2 / 1e4, 4)} ha`;
+    return `${fmt(m2, 1)} m²`;
+  };
+
+  return (
+    <Overlay onClose={onClose}>
+      <div style={{ fontFamily: SERIF, fontSize: 22, fontWeight: 600, marginBottom: 6 }}>
+        {t.scaleTitle}
+      </div>
+      <p style={{ margin: '0 0 14px', fontSize: 12.5, lineHeight: 1.6, color: C.ink2 }}>
+        {t.scaleIntro}
+      </p>
+
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          background: C.soft,
+          border: `1px solid ${C.edge}`,
+          borderRadius: 8,
+          padding: '8px 11px',
+          marginBottom: 12,
+        }}
+      >
+        <span style={{ fontSize: 12, color: C.muted }}>
+          {t.scaleMapScale} · {t.scaleCurrentSheet}
+        </span>
+        <span style={{ fontFamily: MONO, fontSize: 14, color: C.ink }}>
+          {currentScaleDenom === 1 ? '1 : 1' : `1 : ${currentScaleDenom.toLocaleString('de-DE')}`}
+        </span>
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'auto auto 1fr auto',
+          gap: '5px 10px',
+          alignItems: 'center',
+        }}
+      >
+        <div
+          style={{
+            display: 'contents',
+            fontFamily: MONO,
+            fontSize: 9,
+            letterSpacing: 1,
+            textTransform: 'uppercase',
+            color: C.muted,
+          }}
+        >
+          <span>{t.armF}</span>
+          <span>{t.factorK}</span>
+          <span>{t.scalePerME}</span>
+          <span />
+        </div>
+        {CALIBRATIONS.map((c, i) => {
+          const isRecommended = recommendation.index === i && currentScaleDenom !== 1;
+          const isActive = calIdx === i;
+          const realM2 = (c.k * currentScaleDenom * currentScaleDenom) / 1e4;
+          const realText = realPerMEText(realM2);
+          return (
+            <React.Fragment key={c.f}>
+              <span
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 13,
+                  color: isActive ? C.ink : C.ink2,
+                  fontWeight: isActive ? 600 : 400,
+                }}
+              >
+                {fmt(c.f, 1)}
+              </span>
+              <span style={{ fontFamily: MONO, fontSize: 12.5, color: C.muted }}>
+                {c.label}
+              </span>
+              <span
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 12,
+                  color: isRecommended ? C.accent : C.ink2,
+                }}
+              >
+                {realText ?? '—'}
+                {isRecommended && (
+                  <span
+                    style={{
+                      marginLeft: 6,
+                      fontFamily: SANS,
+                      fontSize: 10,
+                      color: C.accent,
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    {t.scaleRecommended}
+                  </span>
+                )}
+              </span>
+              <button
+                onClick={() => setCalIdx(i)}
+                disabled={isActive}
+                style={{
+                  fontFamily: SANS,
+                  fontSize: 10.5,
+                  padding: '3px 9px',
+                  borderRadius: 5,
+                  border: `1px solid ${isActive ? C.accent : C.edge}`,
+                  background: isActive ? 'rgba(26,92,58,0.08)' : C.soft,
+                  color: isActive ? C.accent : C.ink2,
+                  cursor: isActive ? 'default' : 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {isActive ? t.scaleInUse : t.scaleUse}
+              </button>
+            </React.Fragment>
+          );
+        })}
+      </div>
+
+      <button
+        onClick={onClose}
+        style={{
+          marginTop: 18,
+          fontFamily: SANS,
+          fontSize: 13,
+          padding: '7px 16px',
+          borderRadius: 6,
+          border: `1px solid ${C.accent}`,
+          background: C.accent,
+          color: C.paper,
+          cursor: 'pointer',
+        }}
+      >
+        {t.scaleClose}
+      </button>
+    </Overlay>
+  );
+}
+
+/* =========================================================================
+   TUTORIAL — a guided step sequence. Unlike the modal overlays, this card
+   floats above the instrument without blocking it: each step names a real
+   part of the UI (spotlit via `tutorialFocus` on the instrument / result
+   panel) so the user practises the actual controls rather than reading
+   about them in the abstract.
+   ========================================================================= */
+function Tutorial({
+  t,
+  step,
+  setStep,
+  onClose,
+  onOpenScale,
+  onOpenMathMode,
+}: {
+  t: PlanimeterText;
+  step: number;
+  setStep: (i: number) => void;
+  onClose: () => void;
+  onOpenScale: () => void;
+  onOpenMathMode: () => void;
+}) {
+  const steps: { title: string; body: string; cta?: { label: string; onClick: () => void } }[] = [
+    { title: t.tut1Title, body: t.tut1Body },
+    { title: t.tut2Title, body: t.tut2Body },
+    { title: t.tut3Title, body: t.tut3Body, cta: { label: t.scaleTitle, onClick: onOpenScale } },
+    { title: t.tut4Title, body: t.tut4Body },
+    { title: t.tut5Title, body: t.tut5Body },
+    { title: t.tut6Title, body: t.tut6Body },
+    {
+      title: t.tut7Title,
+      body: t.tut7Body,
+      cta: { label: t.mathMode, onClick: onOpenMathMode },
+    },
+  ];
+  const cur = steps[step];
+  const isLast = step === steps.length - 1;
+  const isFirst = step === 0;
+
+  const stepLabel = t.tutorialStepOf
+    .replace('{n}', String(step + 1))
+    .replace('{total}', String(steps.length));
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        left: '50%',
+        bottom: 22,
+        transform: 'translateX(-50%)',
+        zIndex: 90,
+        width: 'min(560px, calc(100vw - 32px))',
+        background: C.panel,
+        border: `1px solid ${C.accent}`,
+        borderRadius: 14,
+        boxShadow: '0 12px 36px rgba(40,37,35,0.22)',
+        padding: '16px 20px 14px',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          marginBottom: 6,
+        }}
+      >
+        <span
+          style={{
+            fontFamily: MONO,
+            fontSize: 10,
+            letterSpacing: 1.4,
+            textTransform: 'uppercase',
+            color: C.accent,
+          }}
+        >
+          {t.tutorial} · {stepLabel}
+        </span>
+        <button
+          onClick={onClose}
+          style={{
+            fontFamily: SANS,
+            fontSize: 11,
+            color: C.muted,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 0,
+          }}
+        >
+          {t.tutorialSkip}
+        </button>
+      </div>
+
+      <div style={{ fontFamily: SERIF, fontSize: 19, fontWeight: 600, color: C.ink, marginBottom: 6 }}>
+        {cur.title}
+      </div>
+      <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6, color: C.ink2 }}>{cur.body}</p>
+
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginTop: 14,
+        }}
+      >
+        <div style={{ display: 'flex', gap: 4 }}>
+          {steps.map((_, i) => (
+            <span
+              key={i}
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: 3,
+                background: i === step ? C.accent : C.edge,
+                transition: 'background 150ms',
+              }}
+            />
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          {cur.cta && (
+            <button
+              onClick={cur.cta.onClick}
+              style={{
+                fontFamily: SANS,
+                fontSize: 12.5,
+                padding: '6px 12px',
+                borderRadius: 6,
+                border: `1px solid ${C.accent}`,
+                background: 'rgba(26,92,58,0.08)',
+                color: C.accent,
+                cursor: 'pointer',
+              }}
+            >
+              {cur.cta.label} →
+            </button>
+          )}
+          {!isFirst && (
+            <button
+              onClick={() => setStep(step - 1)}
+              style={{
+                fontFamily: SANS,
+                fontSize: 12.5,
+                padding: '6px 12px',
+                borderRadius: 6,
+                border: `1px solid ${C.edge}`,
+                background: C.soft,
+                color: C.ink2,
+                cursor: 'pointer',
+              }}
+            >
+              {t.tutorialBack}
+            </button>
+          )}
+          <button
+            onClick={() => (isLast ? onClose() : setStep(step + 1))}
+            style={{
+              fontFamily: SANS,
+              fontSize: 12.5,
+              padding: '6px 14px',
+              borderRadius: 6,
+              border: `1px solid ${C.accent}`,
+              background: C.accent,
+              color: C.paper,
+              cursor: 'pointer',
+            }}
+          >
+            {isLast ? t.tutorialDone : t.tutorialNext}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

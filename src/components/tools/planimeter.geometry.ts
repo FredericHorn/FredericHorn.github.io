@@ -195,6 +195,49 @@ export const CALIBRATIONS: Calibration[] = [
 ];
 
 /* ---------------------------------------------------------------------
+   Which tracer-arm setting to use for a given map scale.
+
+   1 wheel unit (ME) on the paper is k cm² there; on the ground, since
+   linear distances scale by the map's denominator S, that same ME stands
+   for k·S² cm² of real area. Some settings turn that into a round number
+   for a given S (e.g. 1:20000 with k=0.5 gives exactly 2 ha/ME — the
+   textbook example) — that is the setting worth choosing, since every
+   reading then converts in your head. Where none is round, we recommend
+   the one whose real-area-per-ME is closest to a "nice" step.
+   --------------------------------------------------------------------- */
+export type ScaleRecommendation = {
+  cal: Calibration;
+  index: number;
+  /** real area one wheel unit stands for, in m² */
+  realM2PerME: number;
+  /** true when that value lands on a round number (to a few significant figures) */
+  isRound: boolean;
+};
+
+function isRoundNumber(v: number): boolean {
+  if (v <= 0 || !Number.isFinite(v)) return false;
+  // normalise to a mantissa in [1,10) and check it's close to 1, 2, 2.5, or 5 × 10^n
+  const exp = Math.floor(Math.log10(v));
+  const mantissa = v / Math.pow(10, exp);
+  return [1, 2, 2.5, 5, 10].some((m) => Math.abs(mantissa - m) < 0.01);
+}
+
+export function recommendCalibration(scaleDenom: number): ScaleRecommendation {
+  const options = CALIBRATIONS.map((cal, index) => {
+    const realM2PerME = (cal.k * scaleDenom * scaleDenom) / 1e4;
+    return { cal, index, realM2PerME, isRound: isRoundNumber(realM2PerME) };
+  });
+  const round = options.find((o) => o.isRound);
+  if (round) return round;
+  // fall back to whichever keeps 1 ME closest to a convenient ~1000 m² (0.1 ha)
+  return options.reduce((best, o) =>
+    Math.abs(Math.log(o.realM2PerME / 1000)) < Math.abs(Math.log(best.realM2PerME / 1000))
+      ? o
+      : best
+  );
+}
+
+/* ---------------------------------------------------------------------
    Wheel reading.
 
    The drum's circumference is divided into 100 parts, read to 1/1000 of a
