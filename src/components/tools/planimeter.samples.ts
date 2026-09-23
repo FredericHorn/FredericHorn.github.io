@@ -103,8 +103,8 @@ export const SAMPLES: Sample[] = [
   {
     id: 'lake',
     outline: LAKE,
-    scaleDenom: 20000,
-    caption: { de: 'See · 1 : 20 000', en: 'Lake · 1 : 20 000' },
+    scaleDenom: 10000,
+    caption: { de: 'See · 1 : 10 000', en: 'Lake · 1 : 10 000' },
     decor: [
       {
         path: poly([

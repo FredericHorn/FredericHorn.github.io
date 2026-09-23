@@ -180,61 +180,51 @@ export function shoelace(pts: Vec[]): number {
 /* ---------------------------------------------------------------------
    Calibration table (Reiss "Mikroplanimeter" style), tracer-arm setting f
    against the conversion factor k in cm² per wheel unit (ME).
+
+   On the real instrument each of these settings is engraved on the arm
+   next to the *one* map scale it is meant for — exactly like the little
+   brass table glued to the instrument's box lid: "Verhältnis" (map scale)
+   on the left, the nonius setting for the arm in the middle, and the real
+   area one nonius division (1/10 ME) then stands for on the right. That
+   pairing is fixed by the maker, not something you look up separately —
+   you set the arm to the number printed next to your map's scale, full
+   stop. `scaleDenom` here is that printed pairing: for each calibration,
+   the one map scale (1:scaleDenom) it is built for, chosen so 1 nonius
+   division comes out to a clean number of m² (10, 20, 25, 40, 50, 80,
+   160, 400 — verified by scaleDenom² · k / 1e5).
    --------------------------------------------------------------------- */
-export type Calibration = { f: number; k: number; label: string };
+export type Calibration = { f: number; k: number; label: string; scaleDenom: number };
 
 export const CALIBRATIONS: Calibration[] = [
-  { f: 330.3, k: 1, label: '1' },
-  { f: 294.4, k: 8 / 9, label: '8/9' },
-  { f: 263.8, k: 0.8, label: '0,8' },
-  { f: 210.6, k: 0.64, label: '0,64' },
-  { f: 206.4, k: 0.625, label: '0,625' },
-  { f: 164.0, k: 0.5, label: '0,5' },
-  { f: 145.6, k: 4 / 9, label: '4/9' },
-  { f: 130.7, k: 0.4, label: '0,4' },
+  { f: 330.3, k: 1, label: '1', scaleDenom: 1000 },
+  { f: 294.4, k: 8 / 9, label: '8/9', scaleDenom: 1500 },
+  { f: 206.4, k: 0.625, label: '0,625', scaleDenom: 2000 },
+  { f: 263.8, k: 0.8, label: '0,8', scaleDenom: 2500 },
+  { f: 145.6, k: 4 / 9, label: '4/9', scaleDenom: 3000 },
+  { f: 164.0, k: 0.5, label: '0,5', scaleDenom: 4000 },
+  { f: 210.6, k: 0.64, label: '0,64', scaleDenom: 5000 },
+  { f: 130.7, k: 0.4, label: '0,4', scaleDenom: 10000 },
 ];
 
-/* ---------------------------------------------------------------------
-   Which tracer-arm setting to use for a given map scale.
-
-   1 wheel unit (ME) on the paper is k cm² there; on the ground, since
-   linear distances scale by the map's denominator S, that same ME stands
-   for k·S² cm² of real area. Some settings turn that into a round number
-   for a given S (e.g. 1:20000 with k=0.5 gives exactly 2 ha/ME — the
-   textbook example) — that is the setting worth choosing, since every
-   reading then converts in your head. Where none is round, we recommend
-   the one whose real-area-per-ME is closest to a "nice" step.
-   --------------------------------------------------------------------- */
-export type ScaleRecommendation = {
-  cal: Calibration;
-  index: number;
-  /** real area one wheel unit stands for, in m² */
-  realM2PerME: number;
-  /** true when that value lands on a round number (to a few significant figures) */
-  isRound: boolean;
-};
-
-function isRoundNumber(v: number): boolean {
-  if (v <= 0 || !Number.isFinite(v)) return false;
-  // normalise to a mantissa in [1,10) and check it's close to 1, 2, 2.5, or 5 × 10^n
-  const exp = Math.floor(Math.log10(v));
-  const mantissa = v / Math.pow(10, exp);
-  return [1, 2, 2.5, 5, 10].some((m) => Math.abs(mantissa - m) < 0.01);
-}
-
-export function recommendCalibration(scaleDenom: number): ScaleRecommendation {
-  const options = CALIBRATIONS.map((cal, index) => {
-    const realM2PerME = (cal.k * scaleDenom * scaleDenom) / 1e4;
-    return { cal, index, realM2PerME, isRound: isRoundNumber(realM2PerME) };
+/** the calibration built for a given map scale, or the closest one if the
+    scale isn't one of the table's own (e.g. the 1:1 "paper" samples, which
+    aren't tied to any particular arm setting) */
+export function calibrationForScale(scaleDenom: number): { cal: Calibration; index: number } {
+  const index = CALIBRATIONS.findIndex((c) => c.scaleDenom === scaleDenom);
+  if (index !== -1) return { cal: CALIBRATIONS[index], index };
+  // no exact match (e.g. 1:1): fall back to whichever real-area-per-ME is
+  // closest, so the popover still has a sensible default to show
+  let best = 0;
+  let bestDist = Infinity;
+  CALIBRATIONS.forEach((c, i) => {
+    const realM2PerME = (c.k * scaleDenom * scaleDenom) / 1e4;
+    const d = Math.abs(Math.log(realM2PerME || 1e-9));
+    if (d < bestDist) {
+      bestDist = d;
+      best = i;
+    }
   });
-  const round = options.find((o) => o.isRound);
-  if (round) return round;
-  // fall back to whichever keeps 1 ME closest to a convenient ~1000 m² (0.1 ha)
-  return options.reduce((best, o) =>
-    Math.abs(Math.log(o.realM2PerME / 1000)) < Math.abs(Math.log(best.realM2PerME / 1000))
-      ? o
-      : best
-  );
+  return { cal: CALIBRATIONS[best], index: best };
 }
 
 /* ---------------------------------------------------------------------

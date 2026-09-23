@@ -610,10 +610,10 @@ function GalTanCompass({ t }: { t: PoliticsDimensionsText }) {
           {t.compassLeft}
         </text>
         <text x={size / 2} y={pad - 20} fill={C.muted} fontSize="10" fontFamily={MONO} textAnchor="middle">
-          TAN
+          GAL
         </text>
         <text x={size / 2} y={size - pad + 30} fill={C.muted} fontSize="10" fontFamily={MONO} textAnchor="middle">
-          GAL
+          TAN
         </text>
         {GALTAN_PARTIES.map((p) => {
           const r = rFor(p.vote);
@@ -1417,8 +1417,10 @@ function PartyMap({ svd, t }: { svd: any; t: PoliticsDimensionsText }) {
       <svg
         viewBox={`0 0 ${W} ${H}`}
         style={{
+          display: 'block',
           width: '100%',
           maxWidth: W,
+          margin: '0 auto',
           background: C.panelSoft,
           border: `1px solid ${C.panelEdge}`,
           borderRadius: 14,
@@ -1902,10 +1904,12 @@ export function PoliticsDimensions() {
         <Reveal>
           <Eyebrow n="03">{t.s03bEyebrow}</Eyebrow>
           <H2>{t.s03bTitle}</H2>
-          <P>
-            {t.s03bP1} <br></br><br></br>
-            {t.s03bP2}
-          </P>
+          <div style={{ textAlign: 'left' }}>
+            <P>
+              {t.s03bP1} <br></br><br></br>
+              {t.s03bP2}
+            </P>
+          </div>
           <div
             style={{
               display: 'grid',
@@ -2088,7 +2092,7 @@ export function PoliticsDimensions() {
           <P>{t.s07P2}</P>
         </Reveal>
         <Reveal delay={0.1}>
-          <div style={{ marginTop: 26 }}>
+          <div style={{ marginTop: 26, maxWidth: 720, marginLeft: 'auto', marginRight: 'auto' }}>
             <PartyMap svd={svd} t={t} />
           </div>
         </Reveal>

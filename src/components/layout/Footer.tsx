@@ -8,7 +8,7 @@ export function Footer() {
           <div>
             <p className="font-display text-lg text-ink-800">Frederic Horn</p>
             <p className="text-sm text-ink-500 mt-1">
-              Discrete Mathematics · Optimization · Mathematical Structures
+              Combinatorial Optimization · Side Projects · Passing on my passion for mathematics
             </p>
           </div>
           <div className="flex gap-8 text-sm text-ink-500">
@@ -20,11 +20,11 @@ export function Footer() {
             </Link>
           </div>
         </div>
-        <div className="mt-8 pt-6 border-t border-ink-100/50">
+       {/*  <div className="mt-8 pt-6 border-t border-ink-100/50">
           <p className="text-xs text-ink-400 font-mono">
             No cookies · No tracking · No analytics
           </p>
-        </div>
+        </div> */}
       </div>
     </footer>
   );

@@ -8,7 +8,7 @@ import { useLanguage } from '@/lib/LanguageContext';
 
 const navItems = [
   { href: '/research', label: 'Research' },
-  { href: '/projects', label: 'Projects' },
+  { href: '/activities', label: 'Activities' },
   { href: '/tools', label: 'Tools' },
   { href: '/about', label: 'About' },
 ];

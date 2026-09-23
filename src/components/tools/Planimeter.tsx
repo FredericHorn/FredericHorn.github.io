@@ -14,13 +14,13 @@ import { SAMPLES, sampleById, type Sample } from './planimeter.samples';
 import {
   buildLinkage,
   CALIBRATIONS,
+  calibrationForScale,
   dist,
   integrateMove,
   meToMM,
   mmToME,
   readWheel,
   reachRange,
-  recommendCalibration,
   shoelace,
   WHEEL_CIRCUMFERENCE,
   zeroCircleArea,
@@ -436,11 +436,24 @@ export function Planimeter() {
   const { lang } = useLanguage();
   const t = planimeterText[lang === 'de' ? 'de' : 'en'];
 
-  /* ---- instrument state ---------------------------------------------- */
-  // default: f = 263.8 / k = 0,8 — the setting whose arm reaches every sample
-  // outline from a natural pole position on the left of the table.
-  const [calIdx, setCalIdx] = useState(2);
-  const cal = CALIBRATIONS[calIdx];
+  /* ---- sheet / image -------------------------------------------------- */
+  const [sample, setSample] = useState<Sample>(SAMPLES[0]);
+  const [image, setImage] = useState<ImageState | null>(null);
+  /** overrides the current sheet's own map scale when set — editable from
+      the scale popover, so correcting or trying out a scale never requires
+      reopening the image dialog */
+  const [scaleOverride, setScaleOverride] = useState<number | null>(null);
+
+  const currentScaleDenom = scaleOverride ?? (image ? image.scaleDenom : sample.scaleDenom);
+
+  /* ---- instrument state ----------------------------------------------
+     The tracer-arm setting is not a free dial: on the real instrument it
+     is fixed by a maker's table to the one map scale it was built for
+     (see CALIBRATIONS). So the calibration is derived from the current
+     sheet's scale, not kept as independent state — pick a map scale and
+     the arm setting follows automatically, exactly like reading the
+     brass table glued to the instrument's box lid. */
+  const { cal } = useMemo(() => calibrationForScale(currentScaleDenom), [currentScaleDenom]);
   const L = armLengthFromK(cal.k);
   const R = POLE_ARM;
 
@@ -452,14 +465,6 @@ export function Planimeter() {
   const [rollMM, setRollMM] = useState(0);
   const rollRef = useRef(0);
 
-  /* ---- sheet / image -------------------------------------------------- */
-  const [sample, setSample] = useState<Sample>(SAMPLES[0]);
-  const [image, setImage] = useState<ImageState | null>(null);
-  /** overrides the current sheet's own map scale when set — editable from
-      the scale popover, so correcting or trying out a scale never requires
-      reopening the image dialog */
-  const [scaleOverride, setScaleOverride] = useState<number | null>(null);
-
   /* ---- interaction ---------------------------------------------------- */
   const [drag, setDrag] = useState<Drag>(null);
   const [hover, setHover] = useState<string | null>(null);
@@ -469,7 +474,6 @@ export function Planimeter() {
 
   /* ---- panels --------------------------------------------------------- */
   const [mathMode, setMathMode] = useState(false);
-  const [autoLog, setAutoLog] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showZero, setShowZero] = useState(false);
   const [showImageDialog, setShowImageDialog] = useState(false);
@@ -506,6 +510,29 @@ export function Planimeter() {
     const d = dist(pole, tracer);
     return d > reach.max || d < reach.min;
   }, [pole, tracer, reach]);
+
+  /**
+   * Clamp a dragged pole position so the pole-tracer distance never leaves
+   * what the fixed-length arms can actually reach. On the real instrument
+   * the arms are rigid rods — you cannot pull the pole further away than
+   * their combined length R+L, nor push it closer than |R-L|. Without this,
+   * dragging the pole out of reach left `linkage` unable to solve (buildLinkage
+   * returns null) and froze the whole instrument.
+   */
+  const clampPoleTo = useCallback(
+    (p: Vec): Vec => {
+      const d = dist(p, tracer);
+      if (d === 0) return pole; // degenerate: keep the last valid pole
+      if (d >= reach.min && d <= reach.max) return p;
+      const target = d > reach.max ? reach.max : reach.min;
+      const s = target / d;
+      return {
+        x: tracer.x + (p.x - tracer.x) * s,
+        y: tracer.y + (p.y - tracer.y) * s,
+      };
+    },
+    [tracer, reach, pole]
+  );
 
   /* ---------------------------------------------------------------------
      Pointer → table coordinates.
@@ -630,9 +657,9 @@ export function Planimeter() {
     rafRef.current = null;
     const p = pendingPointRef.current;
     if (!p) return;
-    if (drag === 'pole') setPole(p);
+    if (drag === 'pole') setPole(clampPoleTo(p));
     else if (drag === 'tracer') moveTracerTo(p);
-  }, [drag, moveTracerTo]);
+  }, [drag, moveTracerTo, clampPoleTo]);
 
   const onPointerMove = (e: React.PointerEvent) => {
     const p = toTable(e);
@@ -667,7 +694,7 @@ export function Planimeter() {
     if (pendingPointRef.current) {
       const p = pendingPointRef.current;
       pendingPointRef.current = null;
-      if (drag === 'pole') setPole(p);
+      if (drag === 'pole') setPole(clampPoleTo(p));
       else if (drag === 'tracer') moveTracerTo(p);
     }
 
@@ -682,7 +709,7 @@ export function Planimeter() {
     const closed =
       trace.length > 8 && dist(trace[0], trace[trace.length - 1]) <= CLOSE_TOLERANCE;
 
-    if (autoLog && closed && traceStartReading !== null) {
+    if (closed && traceStartReading !== null) {
       setRuns((prev) => [
         ...prev,
         {
@@ -694,7 +721,7 @@ export function Planimeter() {
         },
       ]);
     }
-  }, [mode, autoLog, traceStartReading, cal.k, image, sample, trace, drag, moveTracerTo]);
+  }, [mode, traceStartReading, cal.k, image, sample, trace, drag, moveTracerTo, clampPoleTo]);
 
   const onPointerUp = () => finishTrace();
 
@@ -717,8 +744,6 @@ export function Planimeter() {
      --------------------------------------------------------------------- */
   const meNow = mmToME(rollRef.current);
   const reading = readWheel(meNow);
-
-  const currentScaleDenom = scaleOverride ?? (image ? image.scaleDenom : sample.scaleDenom);
 
   /** the sample caption drawn on the sheet, with its trailing "1 : N" swapped
       in for a live scale override so the label never shows a stale scale */
@@ -818,14 +843,13 @@ export function Planimeter() {
       <TopBar
         t={t}
         cal={cal}
+        scaleDenom={currentScaleDenom}
         onOpenScale={() => setShowScalePopover(true)}
         onImage={() => setShowImageDialog(true)}
         onZero={zeroWheel}
         onClear={clearTrace}
         mathMode={mathMode}
         setMathMode={setMathMode}
-        autoLog={autoLog}
-        setAutoLog={setAutoLog}
         showZero={showZero}
         setShowZero={setShowZero}
         onHelp={() => setShowHelp(true)}
@@ -1111,7 +1135,6 @@ export function Planimeter() {
             scaleDenom={currentScaleDenom}
             closed={traceClosed}
             runs={runs}
-            autoLog={autoLog}
             onClearHistory={clearHistory}
             tutorialFocus={tutorialFocus === 'result'}
           />
@@ -1153,8 +1176,6 @@ export function Planimeter() {
       {showScalePopover && (
         <ScalePopover
           t={t}
-          calIdx={calIdx}
-          setCalIdx={setCalIdx}
           currentScaleDenom={currentScaleDenom}
           onSetScaleDenom={setScaleOverride}
           onClose={() => setShowScalePopover(false)}
@@ -1275,8 +1296,9 @@ function Instrument({
           stroke={C.steelDark}
           strokeWidth={0.9}
         />
-        {/* the wheel itself: a disc seen edge-on, rim perpendicular to the arm.
-            Its plane contains u, so on paper it reads as a short bar along u. */}
+        {/* the wheel itself: a disc seen edge-on, its rim rolling along n
+            (perpendicular to the arm) and sliding along u. Its plane contains
+            n, so on paper it reads as a short bar across the arm, along n. */}
         <g>
           <rect
             x={W.x - 4.6}
@@ -1287,11 +1309,11 @@ function Instrument({
             fill="url(#wheelBrass)"
             stroke={C.steelDark}
             strokeWidth={0.35}
-            transform={`rotate(${(Math.atan2(u.y, u.x) * 180) / Math.PI} ${W.x} ${W.y})`}
+            transform={`rotate(${(Math.atan2(n.y, n.x) * 180) / Math.PI} ${W.x} ${W.y})`}
           />
           {/* rim graduations, they visibly turn as the wheel rolls */}
           <g
-            transform={`rotate(${(Math.atan2(u.y, u.x) * 180) / Math.PI} ${W.x} ${W.y})`}
+            transform={`rotate(${(Math.atan2(n.y, n.x) * 180) / Math.PI} ${W.x} ${W.y})`}
             opacity={0.85}
           >
             {Array.from({ length: 9 }, (_, i) => (
@@ -1444,14 +1466,13 @@ function PartLabel({ at, text }: { at: Vec; text: string }) {
 function TopBar({
   t,
   cal,
+  scaleDenom,
   onOpenScale,
   onImage,
   onZero,
   onClear,
   mathMode,
   setMathMode,
-  autoLog,
-  setAutoLog,
   showZero,
   setShowZero,
   onHelp,
@@ -1464,14 +1485,13 @@ function TopBar({
 }: {
   t: PlanimeterText;
   cal: (typeof CALIBRATIONS)[number];
+  scaleDenom: number;
   onOpenScale: () => void;
   onImage: () => void;
   onZero: () => void;
   onClear: () => void;
   mathMode: boolean;
   setMathMode: (b: boolean) => void;
-  autoLog: boolean;
-  setAutoLog: (b: boolean) => void;
   showZero: boolean;
   setShowZero: (b: boolean) => void;
   onHelp: () => void;
@@ -1517,7 +1537,22 @@ function TopBar({
 
       <Divider />
 
-      {/* tracer-arm / scale — opens the same popover as clicking the hinge */}
+      {/* map scale / tracer-arm — opens the same popover as clicking the hinge.
+          The scale drives the arm setting (not the other way round), so it's
+          shown first: pick your map's ratio, the arm setting follows. */}
+      <Field label={t.scaleMapScale}>
+        <button
+          onClick={onOpenScale}
+          style={{
+            ...selectStyle,
+            cursor: 'pointer',
+            color: C.accent,
+            fontWeight: 600,
+          }}
+        >
+          1 : {scaleDenom.toLocaleString('de-DE')}
+        </button>
+      </Field>
       <Field label={t.armF}>
         <button onClick={onOpenScale} style={{ ...selectStyle, cursor: 'pointer' }}>
           {fmt(cal.f, 1)}
@@ -1529,7 +1564,7 @@ function TopBar({
           style={{
             fontFamily: MONO,
             fontSize: 12.5,
-            color: C.accent,
+            color: C.ink2,
             background: 'none',
             border: 'none',
             padding: 0,
@@ -1570,7 +1605,6 @@ function TopBar({
 
       <Divider />
 
-      <Toggle on={autoLog} set={setAutoLog} label={t.autoLog} />
       <Toggle on={mathMode} set={setMathMode} label={t.mathMode} />
       <Toggle on={showZero} set={setShowZero} label={t.showZeroCircle} />
 
@@ -1751,7 +1785,6 @@ function ResultPanel({
   scaleDenom,
   closed,
   runs,
-  autoLog,
   onClearHistory,
   tutorialFocus = false,
 }: {
@@ -1764,7 +1797,6 @@ function ResultPanel({
   scaleDenom: number;
   closed: boolean;
   runs: Run[];
-  autoLog: boolean;
   onClearHistory: () => void;
   tutorialFocus?: boolean;
 }) {
@@ -1812,7 +1844,6 @@ function ResultPanel({
           }}
         >
           {t.result}
-          {autoLog && <span style={{ color: C.accent, marginLeft: 6 }}>● auto</span>}
         </span>
         {closed && (
           <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.accent }}>
@@ -1930,12 +1961,14 @@ function ResultPanel({
               onClick={onClearHistory}
               style={{
                 fontFamily: SANS,
-                fontSize: 10,
-                color: C.muted,
+                fontSize: 10.5,
+                fontWeight: 600,
+                color: C.red,
                 background: 'none',
-                border: 'none',
+                border: `1px solid ${C.edge}`,
+                borderRadius: 5,
+                padding: '2px 7px',
                 cursor: 'pointer',
-                padding: 0,
               }}
             >
               {t.clearHistory}
@@ -3033,49 +3066,27 @@ const pillStyle = (on: boolean): React.CSSProperties => ({
 });
 
 /* =========================================================================
-   SCALE POPOVER — opens on the hinge. Shows which tracer-arm setting suits
-   the sheet's map scale, and why: one wheel unit is k cm² on paper, which
-   is k·S² cm² of real ground once you account for the map scale S.
+   SCALE POPOVER — opens on the hinge. A direct copy of the little brass
+   table glued to a real instrument's box lid: one row per map scale, each
+   permanently paired with the one tracer-arm setting the maker built for
+   it. There is nothing to compute or recommend — you look up your map's
+   ratio and set the arm to what's printed next to it.
    ========================================================================= */
 function ScalePopover({
   t,
-  calIdx,
-  setCalIdx,
   currentScaleDenom,
   onSetScaleDenom,
   onClose,
 }: {
   t: PlanimeterText;
-  calIdx: number;
-  setCalIdx: (i: number) => void;
   currentScaleDenom: number;
   onSetScaleDenom: (denom: number | null) => void;
   onClose: () => void;
 }) {
-  // the field is edited as free text so a half-typed number never gets
-  // stomped by re-formatting; it only commits back to state on blur/apply
-  const [denomInput, setDenomInput] = useState(String(currentScaleDenom));
-  useEffect(() => setDenomInput(String(currentScaleDenom)), [currentScaleDenom]);
-
-  const commitDenom = () => {
-    const n = parseInt(denomInput.replace(/[^0-9]/g, ''), 10);
-    onSetScaleDenom(Number.isFinite(n) && n > 0 ? n : 1);
-  };
-
-  const recommendation = useMemo(
-    () => recommendCalibration(currentScaleDenom),
-    [currentScaleDenom]
-  );
-
-  const realAreaText = (m2: number) => {
-    if (currentScaleDenom === 1) return null; // "real" == paper at 1:1, not useful here
-    if (m2 >= 1e6) return `${fmt(m2 / 1e6, 3)} km²`;
-    if (m2 >= 1e4) return `${fmt(m2 / 1e4, 4)} ha`;
-    return `${fmt(m2, 1)} m²`;
-  };
+  const isPaperSample = currentScaleDenom === 1;
 
   return (
-    <Overlay onClose={onClose} maxWidth={580}>
+    <Overlay onClose={onClose} maxWidth={520}>
       <div style={{ fontFamily: SERIF, fontSize: 22, fontWeight: 600, marginBottom: 6 }}>
         {t.scaleTitle}
       </div>
@@ -3083,55 +3094,28 @@ function ScalePopover({
         {t.scaleIntro}
       </p>
 
-      {/* the map scale itself — editable right here, no need to reopen the image dialog */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          background: C.soft,
-          border: `1px solid ${C.edge}`,
-          borderRadius: 8,
-          padding: '8px 11px',
-          marginBottom: 12,
-          gap: 10,
-        }}
-      >
-        <span style={{ fontSize: 12, color: C.muted }}>
-          {t.scaleMapScale} · {t.scaleCurrentSheet}
-        </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <span style={{ fontFamily: MONO, fontSize: 14, color: C.ink }}>1 :</span>
-          <input
-            value={denomInput}
-            onChange={(e) => setDenomInput(e.target.value.replace(/[^0-9]/g, ''))}
-            onBlur={commitDenom}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                commitDenom();
-                (e.target as HTMLInputElement).blur();
-              }
-            }}
-            inputMode="numeric"
-            style={{
-              width: 90,
-              fontFamily: MONO,
-              fontSize: 14,
-              padding: '3px 7px',
-              border: `1px solid ${C.edge}`,
-              borderRadius: 5,
-              background: C.panel,
-              textAlign: 'right',
-              color: C.ink,
-            }}
-          />
-        </div>
-      </div>
+      {isPaperSample && (
+        <p
+          style={{
+            margin: '0 0 12px',
+            fontSize: 12,
+            lineHeight: 1.6,
+            color: C.brass,
+            background: 'rgba(139,106,19,0.08)',
+            border: `1px solid rgba(139,106,19,0.25)`,
+            borderRadius: 7,
+            padding: '7px 10px',
+            fontStyle: 'italic',
+          }}
+        >
+          {t.scaleFreeNote}
+        </p>
+      )}
 
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'auto auto auto minmax(112px,auto) auto',
+          gridTemplateColumns: 'auto auto minmax(112px,auto) auto',
           gap: '5px 10px',
           alignItems: 'center',
         }}
@@ -3146,59 +3130,47 @@ function ScalePopover({
             color: C.muted,
           }}
         >
-          <span>{t.armF}</span>
-          <span>{t.factorK}</span>
+          <span>{t.scaleMapScale}</span>
           <span>{t.scaleOnPaper}</span>
           <span>{t.scalePerME}</span>
           <span />
         </div>
-        {CALIBRATIONS.map((c, i) => {
-          const isRecommended = recommendation.index === i && currentScaleDenom !== 1;
-          const isActive = calIdx === i;
-          const realM2 = (c.k * currentScaleDenom * currentScaleDenom) / 1e4;
-          const realText = realAreaText(realM2);
+        {CALIBRATIONS.map((c) => {
+          // active means this row's scale is the one the current sheet is
+          // drawn at — for the 1:1 samples that's the closest-match row
+          // from calibrationForScale, shown as "empfohlen" rather than "in use"
+          const isExactMatch = c.scaleDenom === currentScaleDenom;
+          const isActive = !isPaperSample && isExactMatch;
+          const realM2PerNonius = (c.k * c.scaleDenom * c.scaleDenom) / 1e5;
           return (
             <React.Fragment key={c.f}>
               <span
                 style={{
                   fontFamily: MONO,
-                  fontSize: 13,
-                  color: isActive ? C.ink : C.ink2,
-                  fontWeight: isActive ? 600 : 400,
+                  fontSize: 14,
+                  color: isActive ? C.accent : C.ink,
+                  fontWeight: isActive ? 700 : 600,
                 }}
               >
-                {fmt(c.f, 1)}
-              </span>
-              <span style={{ fontFamily: MONO, fontSize: 12.5, color: C.muted }}>
-                {c.label}
-              </span>
-              <span style={{ fontFamily: MONO, fontSize: 12, color: C.ink2 }}>
-                {fmt(c.k, 2)} cm²
+                1 : {c.scaleDenom.toLocaleString('de-DE')}
               </span>
               <span
                 style={{
                   fontFamily: MONO,
-                  fontSize: 12,
-                  color: isRecommended ? C.accent : C.ink2,
+                  fontSize: 13,
+                  color: isActive ? C.ink : C.ink2,
                 }}
               >
-                {realText ?? '—'}
-                {isRecommended && (
-                  <span
-                    style={{
-                      marginLeft: 6,
-                      fontFamily: SANS,
-                      fontSize: 10,
-                      color: C.accent,
-                      fontStyle: 'italic',
-                    }}
-                  >
-                    {t.scaleRecommended}
-                  </span>
-                )}
+                {fmt(c.f, 1)}
+                <span style={{ fontSize: 10, color: C.muted, marginLeft: 4 }}>
+                  ({t.factorK} {c.label})
+                </span>
+              </span>
+              <span style={{ fontFamily: MONO, fontSize: 12, color: C.ink2 }}>
+                {fmt(realM2PerNonius, realM2PerNonius < 10 ? 1 : 0)} m²
               </span>
               <button
-                onClick={() => setCalIdx(i)}
+                onClick={() => onSetScaleDenom(c.scaleDenom)}
                 disabled={isActive}
                 style={{
                   fontFamily: SANS,

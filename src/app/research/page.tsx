@@ -13,7 +13,7 @@ export default function ResearchPage() {
     <>
       <PageHeader
         title="Research"
-        subtitle="My work lies at the intersection of polyhedral combinatorics, combinatorial optimization, and algebraic structure theory. I study the geometry of discrete objects — and what it reveals about the problems we can solve."
+        subtitle="My work lies at the intersection of polyhedral combinatorics, integer programming, and finite group theory. I study the geometry of discrete objects and what it reveals about all the problems we can model."
         ornament="∫"
       />
 
@@ -30,7 +30,9 @@ export default function ResearchPage() {
               </h2>
               <p className="mt-4 text-ink-600 leading-relaxed max-w-wide">
                 Binary cyclic transversal polytopes unify parity-type constraints in combinatorial
-                optimization. My work extends this framework to arbitrary finite abelian groups,
+                optimization. Frede, Kaibel, Merkert created this modelling framework that can 
+                explain facets of many well known combinatorial polytopes at once. 
+                My work extends this framework to arbitrary finite abelian groups,
                 uncovering a structural connection to Gomory&apos;s master polyhedra: every facet of a
                 master polyhedron induces a family of facets for the corresponding cyclic transversal
                 polytope via a systematic translation. Consequences include a complete facet description
@@ -51,7 +53,7 @@ export default function ResearchPage() {
           </div>
         </AnimatedSection>
 
-        {/* Research Interests */}
+        {/* Research Interests 
         <AnimatedSection delay={0.15}>
           <h2 className="font-display text-display-sm text-ink-900 mb-8">
             Research Interests
@@ -80,7 +82,7 @@ export default function ResearchPage() {
           </div>
         </AnimatedSection>
 
-        {/* Publications placeholder */}
+        {/* Publications placeholder
         <AnimatedSection delay={0.25}>
           <div className="mt-20">
             <h2 className="font-display text-display-sm text-ink-900 mb-6">
@@ -90,7 +92,7 @@ export default function ResearchPage() {
               Publication list will be added here.
             </p>
           </div>
-        </AnimatedSection>
+        </AnimatedSection> */}
       </div>
     </>
   );

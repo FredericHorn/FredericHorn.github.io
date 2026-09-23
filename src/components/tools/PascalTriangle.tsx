@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 function computePascal(rows: number): number[][] {
@@ -109,9 +109,20 @@ export function PascalTriangle() {
   const [showValues, setShowValues] = useState(true);
   const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
   const [factMode, setFactMode] = useState<FactMode>('none');
-  const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
+  const [rawSelectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
 
   const triangle = useMemo(() => computePascal(numRows), [numRows]);
+
+  // If the row count shrinks below the previously selected cell, drop the
+  // selection instead of letting stale coordinates index past the new triangle.
+  const selectedCell =
+    rawSelectedCell && (rawSelectedCell.row >= numRows || rawSelectedCell.col > rawSelectedCell.row)
+      ? null
+      : rawSelectedCell;
+
+  useEffect(() => {
+    if (rawSelectedCell && selectedCell === null) setSelectedCell(null);
+  }, [rawSelectedCell, selectedCell]);
 
   const fibSet = useMemo(() => {
     const s = new Set<number>();
@@ -190,15 +201,18 @@ export function PascalTriangle() {
 
       if (factMode === 'fibonacci') {
         const d = ((2 * row - col) % 3 + 3) % 3;
-        const isSelected = sel && (2 * row - col) === (2 * sel.row - sel.col);
+        if (!sel) {
+          if (d === 0) return FC.red;
+          if (d === 1) return FC.orange;
+          return FC.yellow;
+        }
+        const isSelected = (2 * row - col) === (2 * sel.row - sel.col);
         if (isSelected) {
           if (d === 0) return { bg: '#6a1515', text: '#faf9f7' };
           if (d === 1) return { bg: '#7a3a10', text: '#faf9f7' };
           return { bg: '#6a5810', text: '#faf9f7' };
         }
-        if (d === 0) return FC.red;
-        if (d === 1) return FC.orange;
-        return FC.yellow;
+        return FC.dim;
       }
 
       if (factMode === 'honeycomb') {
@@ -245,9 +259,11 @@ export function PascalTriangle() {
 
   const getCellPos = (r: number, c: number) => {
     const y = r * totalSize * 0.9 + cellSize;
-    if (factMode === 'fibonacci') {
-      return { x: svgWidth - (r - c) * totalSize - cellSize * 0.5, y };
-    }
+    // Disabled for now: shifts cells into diagonal alignment for the Fibonacci
+    // fun fact. Keeping the normal triangle layout instead, per request.
+    // if (factMode === 'fibonacci') {
+    //   return { x: svgWidth - (r - c) * totalSize - cellSize * 0.5, y };
+    // }
     return { x: svgWidth / 2 + (c - r / 2) * totalSize, y };
   };
 
@@ -390,64 +406,30 @@ export function PascalTriangle() {
           </div>
         </div>
 
-        {/* Highlight modes — hidden when a fact is active */}
-        <AnimatePresence>
-          {factMode === 'none' && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="space-y-3 overflow-hidden"
-            >
-              <div className="flex flex-wrap gap-2">
-                {(
-                  [
-                    ['mod', 'Modular'], ['even-odd', 'Even/Odd'], ['diagonal', 'Diagonals'],
-                    ['fibonacci', 'Fibonacci'], ['powers-of-2', 'Powers of 2'], ['none', 'None'],
-                  ] as [HighlightMode, string][]
-                ).map(([m, label]) => (
-                  <button
-                    key={m}
-                    onClick={() => setMode(m)}
-                    className={`px-3 py-1.5 text-xs font-mono rounded-md transition-all ${
-                      mode === m ? 'bg-accent text-white' : 'bg-ink-100 text-ink-600 hover:bg-ink-200'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <AnimatePresence>
-                {mode === 'mod' && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="flex items-center gap-2"
-                  >
-                    <span className="text-xs font-mono text-ink-500">mod</span>
-                    {[2, 3, 5, 7].map((m) => (
-                      <button
-                        key={m}
-                        onClick={() => setModulus(m)}
-                        className={`w-8 h-8 rounded-full text-sm font-mono transition-all ${
-                          modulus === m ? 'bg-accent text-white' : 'bg-ink-100 text-ink-600 hover:bg-ink-200'
-                        }`}
-                      >
-                        {m}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Fun Facts */}
-        <div className="border-t border-ink-100 pt-4">
+        {/* Fun Facts (includes the Modular / None highlight modes) */}
+        <div className="border-t border-ink-100 pt-4 space-y-3">
           <p className="text-xs font-mono text-ink-500 uppercase tracking-wider mb-2">Fun Facts</p>
           <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ['mod', 'Modular'],
+                ['none', 'None'],
+              ] as [HighlightMode, string][]
+            ).map(([m, label]) => (
+              <button
+                key={m}
+                onClick={() => {
+                  setMode(m);
+                  setFactMode('none');
+                  setSelectedCell(null);
+                }}
+                className={`px-3 py-1.5 text-xs font-mono rounded-md transition-all ${
+                  factMode === 'none' && mode === m ? 'bg-accent text-white' : 'bg-ink-100 text-ink-600 hover:bg-ink-200'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
             {(
               [
                 ['hockey', 'Hockey Stick'],
@@ -468,6 +450,29 @@ export function PascalTriangle() {
               </button>
             ))}
           </div>
+          <AnimatePresence>
+            {factMode === 'none' && mode === 'mod' && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="flex items-center gap-2 overflow-hidden"
+              >
+                <span className="text-xs font-mono text-ink-500">mod</span>
+                {[2, 3, 5, 7].map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setModulus(m)}
+                    className={`w-8 h-8 rounded-full text-sm font-mono transition-all ${
+                      modulus === m ? 'bg-accent text-white' : 'bg-ink-100 text-ink-600 hover:bg-ink-200'
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 

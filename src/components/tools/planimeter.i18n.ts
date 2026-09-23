@@ -14,7 +14,6 @@ export const planimeterText = {
     loadImage: 'Bild laden',
     resetWheel: 'Messwerk nullen',
     clearTrace: 'Spur löschen',
-    autoLog: 'Auto-Protokoll',
     mathMode: 'Mathe-Modus',
     help: 'Anleitung',
     showZeroCircle: 'Nullkreis',
@@ -115,15 +114,17 @@ export const planimeterText = {
     /* scale popover (opens on the hinge) */
     scaleTitle: 'Maßstab & Fahrarm',
     scaleIntro:
-      'Ein Messwerkschritt (1 ME) entspricht auf dem Papier immer k cm² — unabhängig vom Kartenmaßstab. In der Wirklichkeit sind das, je nach Kartenmaßstab S, k·S²: darum lohnt sich pro Maßstab ein bestimmter Fahrarm. Trag unten den Maßstab deiner Karte ein, dann zeigt die Tabelle beide Seiten nebeneinander.',
+      'Wie am echten Gerät steht neben jedem Kartenmaßstab genau eine Fahrarm-Einstellung — such unten das Verhältnis deiner Karte heraus, der Fahrarm wird sofort passend eingestellt.',
     scaleMapScale: 'Kartenmaßstab',
-    scaleCurrentSheet: 'aktuelles Blatt · zum Ändern eintippen',
-    scaleOnPaper: 'pro ME auf dem Papier',
-    scalePerME: 'pro ME in Wirklichkeit',
+    scaleCurrentSheet: 'aktuelles Blatt',
+    scaleOnPaper: 'Einstellung d. Nonius am Fahrstab',
+    scalePerME: 'Wert der Nonius-Einheit',
     scaleRecommended: 'empfohlen',
-    scaleUse: 'verwenden',
+    scaleUse: 'einstellen',
     scaleInUse: 'eingestellt',
     scaleClose: 'schließen',
+    scaleFreeNote:
+      'Dieses Blatt ist im Maßstab 1 : 1 (Probe) gezeichnet — dafür ist keine bestimmte Einstellung vorgeschrieben, jede der Zeilen funktioniert.',
 
     /* tutorial */
     tutorial: 'Tutorial',
@@ -194,7 +195,7 @@ export const planimeterText = {
 
   en: {
     title: 'Planimeter',
-    subtitle: 'Measuring area without arithmetic',
+    subtitle: 'Measuring area without calculating',
 
     setup: 'Setup',
     pole: 'Pole',
@@ -206,7 +207,6 @@ export const planimeterText = {
     loadImage: 'Load image',
     resetWheel: 'Zero the wheel',
     clearTrace: 'Clear trace',
-    autoLog: 'Auto log',
     mathMode: 'Maths mode',
     help: 'How to',
     showZeroCircle: 'Zero circle',
@@ -300,14 +300,16 @@ export const planimeterText = {
     /* scale popover (opens on the hinge) */
     scaleTitle: 'Scale & tracer arm',
     scaleIntro:
-      "One wheel unit (ME) is always k cm² on the paper, whatever the map's scale. In reality, depending on the map scale S, that is k·S² — so each scale has a tracer-arm setting worth using. Type your map's scale in below and the table shows both sides at once.",
+      'Just like on the real instrument, every map scale has exactly one tracer-arm setting next to it — find your map\'s ratio below and the arm is set to match immediately.',
     scaleMapScale: 'Map scale',
-    scaleCurrentSheet: 'current sheet · type to change',
-    scaleOnPaper: 'per ME on paper',
-    scalePerME: 'per ME in reality',
+    scaleCurrentSheet: 'current sheet',
+    scaleOnPaper: 'nonius setting on the tracer arm',
+    scalePerME: 'value of one nonius division',
     scaleRecommended: 'recommended',
-    scaleUse: 'use',
+    scaleUse: 'set',
     scaleInUse: 'in use',
+    scaleFreeNote:
+      'This sheet is drawn at 1 : 1 (a sample) — no particular setting is required for it, any row works.',
     scaleClose: 'close',
 
     /* tutorial */

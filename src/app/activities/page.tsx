@@ -5,7 +5,7 @@ import { ExpandableCard } from '@/components/ui/ExpandableCard';
 import { AnimatedSection } from '@/components/ui/AnimatedSection';
 
 export const metadata: Metadata = {
-  title: 'Projects',
+  title: 'Activities',
   description: 'Mathematical outreach, education, and exploration projects.',
 };
 
@@ -131,11 +131,11 @@ const groups: ProjectGroup[] = [
   },
 ];
 
-export default function ProjectsPage() {
+export default function ActivitiesPage() {
   return (
     <>
       <PageHeader
-        title="Projects"
+        title="Activities"
         subtitle="Mathematics lives in many places — in research, in classrooms, in conversations, and at the boundary of disciplines. These are some of the projects I'm involved in."
         ornament="⊞"
       />

@@ -32,9 +32,9 @@ const sections = [
     tag: 'Current work',
   },
   {
-    title: 'Projects',
+    title: 'Activities',
     description: 'Mathematical outreach, education, talks, and explorations at the boundary of mathematics and society.',
-    href: '/projects',
+    href: '/activities',
     tag: 'Outreach & Teaching',
   },
   {
@@ -56,10 +56,10 @@ export default function HomePage() {
     <>
       {/* Hero */}
       <section className="relative min-h-[90vh] flex items-center overflow-hidden">
-        {/* Decorative graph - positioned behind text */}
+        {/* Decorative graph - positioned behind text 
         <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[500px] h-[400px] opacity-30 sm:opacity-40 pointer-events-none hidden sm:block">
           <HeroGraph />
-        </div>
+        </div>*/}
 
         <div className="section-container relative z-10 py-32 sm:py-40">
           <motion.div
@@ -82,9 +82,7 @@ export default function HomePage() {
               ease: [0.21, 0.47, 0.32, 0.98],
             }}
           >
-            Combinatorial optimization,{' '}
-            <span className="italic font-light text-ink-600">real-life applications</span>{' '}
-            and sharing my enthusiasm for mathematics
+            Welcome
           </motion.h1>
 
           <motion.p
@@ -93,20 +91,30 @@ export default function HomePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.3 }}
           >
-            Currently working on understanding politics through the lens of mathematics.
+            I&apos;m a PhD student in mathematics at OVGU Magdeburg, working on combinatorial
+            optimization and polytopes. Alongside my research I like to pursue various
+            other mathematical projects, some of which you can explore here, and I
+            enjoy sharing my enthusiasm for mathematics, which is also why I take part
+            in organizing math olympiads.
           </motion.p>
 
           <motion.div
-            className="mt-10 flex gap-4"
+            className="mt-10 flex flex-wrap gap-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.5 }}
           >
             <Link
+              href="/research"
+              className="inline-flex items-center px-6 py-3 bg-accent text-white text-sm font-medium rounded-md hover:bg-accent-dark transition-colors"
+            >
+              Research
+            </Link>
+            <Link
               href="/tools/politics-dimensions"
               className="inline-flex items-center px-6 py-3 bg-accent text-white text-sm font-medium rounded-md hover:bg-accent-dark transition-colors"
             >
-              Politics Tool
+              Wahl-O-Mat Tool
             </Link>
             <Link
               href="/about"
@@ -118,7 +126,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Core Areas */}
+      {/* Core Areas 
       <section className="py-20 sm:py-28 border-t border-ink-100/50">
         <div className="section-container">
           <AnimatedSection>
@@ -146,9 +154,9 @@ export default function HomePage() {
             ))}
           </div>
         </div>
-      </section>
+      </section>*/}
 
-      {/* Sections Teaser */}
+      {/* Sections Teaser 
       <section className="py-20 sm:py-28 bg-white/40">
         <div className="section-container">
           <AnimatedSection>
@@ -169,9 +177,9 @@ export default function HomePage() {
             ))}
           </div>
         </div>
-      </section>
+      </section>*/}
 
-      {/* Quote / Philosophy */}
+      {/* Quote / Philosophy 
       <section className="py-24 sm:py-32">
         <div className="section-container">
           <AnimatedSection>
@@ -185,7 +193,7 @@ export default function HomePage() {
             </blockquote>
           </AnimatedSection>
         </div>
-      </section>
+      </section>*/}
     </>
   );
 }

@@ -24,39 +24,79 @@ export default function AboutPage() {
               <div className="prose prose-lg max-w-reading">
                 <p className="text-xl text-ink-700 leading-relaxed font-light">
                   I am a PhD student at the Otto-von-Guericke University Magdeburg, working in 
-                  combinatorial optimization and integer programming. My research lies at the 
+                  combinatorial optimization. My research lies at the 
                   intersection of discrete mathematics and optimization, with a particular focus on 
-                  the geometry of polytopes arising from combinatorial problems — and what this 
+                  the geometry of polytopes arising from combinatorial problems and what this 
                   geometry reveals about their underlying structure.
                 </p>
 
-                <h2>How I think about mathematics</h2>
-                <p>
-                  What draws me to mathematics is the process of uncovering structure: starting from 
-                  a seemingly opaque problem and gradually revealing the ideas that make it work. 
-                  Early on, I was particularly fascinated by the puzzle-like nature of combinatorial 
-                  optimization, which ultimately led me to specialize in this area.
-                </p>
-                <p>
-                  I completed both my Bachelor's and Master's degrees with distinction at the 
-                  Otto-von-Guericke University Magdeburg, focusing on mathematical optimization 
-                  while maintaining a broad interest across mathematics. During my Master's studies, 
-                  I worked as an intern at d-fine GmbH, where I applied mathematical and computational 
-                  methods to problems in the healthcare sector.
-                </p>
+                <h2>Education</h2>
+                <ul>
+                  <li>
+                    <span className="font-medium text-ink-900">Ph.D. in Mathematics</span>, Otto-von-Guericke University Magdeburg — since Oct 2024
+                    <span className="block mt-0.5 text-ink-500 text-sm leading-snug">Institute for Mathematical Optimization, advised by Prof. Volker Kaibel</span>
+                  </li>
+                  <li>
+                    <span className="font-medium text-ink-900">M.Sc. Mathematics</span>, Otto-von-Guericke University Magdeburg — Oct 2021 – Sep 2024
+                    <span className="block mt-0.5 text-ink-500 text-sm leading-snug">GPA 1.1 (German scale, 1.0 = highest), awarded &ldquo;with distinction&rdquo; — Optimization, Artificial Intelligence</span>
+                  </li>
+                  <li>
+                    <span className="font-medium text-ink-900">B.Sc. Mathematics</span>, Otto-von-Guericke University Magdeburg — Oct 2018 – Sep 2021
+                    <span className="block mt-0.5 text-ink-500 text-sm leading-snug">GPA 1.1, awarded &ldquo;with distinction&rdquo; — Combinatorial Optimization, Computer Science</span>
+                  </li>
+                  <li>
+                    <span className="font-medium text-ink-900">Abitur</span>, Paul-Gerhardt-Gymnasium Gräfenhainichen — 2018
+                    <span className="block mt-0.5 text-ink-500 text-sm leading-snug">
+                      GPA 1.0 — national finalist in Bundeswettbewerb Mathematik and Jugend Debattiert
+                    </span>
+                  </li>
+                </ul>
 
-                <h2>Beyond the office</h2>
-                <p>
-                  I am actively involved in mathematical outreach and talent development, including 
-                  coaching for the Mathematical Olympiad and organizing seminars for gifted students 
-                  at the state level. I am particularly interested in making abstract mathematical 
-                  ideas tangible through visualization, interactive formats, and public talks.
-                </p>
-                <p>
-                  More recently, I have developed an interest in the role of artificial intelligence 
-                  in academic work. I build tools to integrate AI into my research workflow and enjoy 
-                  exploring how these technologies may shape the future of mathematical practice.
-                </p>
+                <h2>Work Experience</h2>
+                <ul>
+                  <li>
+                    <span className="font-medium text-ink-900">Consulting Intern</span>, d-fine GmbH — Apr – Jun 2023
+                    <span className="block mt-0.5 text-ink-500 text-sm leading-snug">
+                      Developed a web application for a pharmaceutical wholesale client (TypeScript, PostgreSQL, Java),
+                      building core MVP modules for real-time truck tracking, inventory analysis, and dashboarding.
+                    </span>
+                  </li>
+                  <li>
+                    <span className="font-medium text-ink-900">Research &amp; Teaching Assistant</span>, OVGU Magdeburg — 2021 – 2024
+                    <span className="block mt-0.5 text-ink-500 text-sm leading-snug">
+                      Digitized the faculty&rsquo;s module-handbook process and built a database-backed website,
+                      reducing manual workflow and communication overhead by over 65%.
+                    </span>
+                  </li>
+                  <li>
+                    <span className="font-medium text-ink-900">Parliamentary Aide</span>, Office of Bundestag Member Sepp Müller — Nov 2018 – Mar 2020
+                    <span className="block mt-0.5 text-ink-500 text-sm leading-snug">
+                      Provided policy research and election analysis, and managed the office&rsquo;s online presence.
+                    </span>
+                  </li>
+                </ul>
+
+                <h2>Teaching &amp; Leadership</h2>
+                <ul>
+                  <li>
+                    <span className="font-medium text-ink-900">Instructor</span>, Math Olympiad Masterclass
+                    <span className="block mt-0.5 text-ink-500 text-sm leading-snug">
+                      Designed curriculum and problem sets for top 10th-grade students of the state.
+                    </span>
+                  </li>
+                  <li>
+                    <span className="font-medium text-ink-900">Board Member</span>, eLeMeNTe e.V. — since Feb 2026
+                    <span className="block mt-0.5 text-ink-500 text-sm leading-snug">
+                      Math talent-development nonprofit; involved in organizing events since 2019.
+                    </span>
+                  </li>
+                  <li>
+                    <span className="font-medium text-ink-900">Chair, Faculty &amp; Department Student Council</span>, Mathematics, OVGU — 2019 – 2024
+                    <span className="block mt-0.5 text-ink-500 text-sm leading-snug">
+                      PhD student representative on the Faculty Council since Sep 2026.
+                    </span>
+                  </li>
+                </ul>
               </div>
             </AnimatedSection>
           </div>
