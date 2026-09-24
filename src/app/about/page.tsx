@@ -38,16 +38,16 @@ export default function AboutPage() {
                   </li>
                   <li>
                     <span className="font-medium text-ink-900">M.Sc. Mathematics</span>, Otto-von-Guericke University Magdeburg — Oct 2021 – Sep 2024
-                    <span className="block mt-0.5 text-ink-500 text-sm leading-snug">GPA 1.1 (German scale, 1.0 = highest), awarded &ldquo;with distinction&rdquo; — Optimization, Artificial Intelligence</span>
+                    <span className="block mt-0.5 text-ink-500 text-sm leading-snug">Final grade 1.1 (German scale, 1.0 = highest), awarded &ldquo;with distinction&rdquo; — Optimization, Artificial Intelligence</span>
                   </li>
                   <li>
                     <span className="font-medium text-ink-900">B.Sc. Mathematics</span>, Otto-von-Guericke University Magdeburg — Oct 2018 – Sep 2021
-                    <span className="block mt-0.5 text-ink-500 text-sm leading-snug">GPA 1.1, awarded &ldquo;with distinction&rdquo; — Combinatorial Optimization, Computer Science</span>
+                    <span className="block mt-0.5 text-ink-500 text-sm leading-snug">Final grade 1.1 (German scale, 1.0 = highest), awarded &ldquo;with distinction&rdquo; — Combinatorial Optimization, Computer Science</span>
                   </li>
                   <li>
                     <span className="font-medium text-ink-900">Abitur</span>, Paul-Gerhardt-Gymnasium Gräfenhainichen — 2018
                     <span className="block mt-0.5 text-ink-500 text-sm leading-snug">
-                      GPA 1.0 — national finalist in Bundeswettbewerb Mathematik and Jugend Debattiert
+                      Final grade 1.0 (German scale, 1.0 = highest) — national finalist in Bundeswettbewerb Mathematik and Jugend Debattiert
                     </span>
                   </li>
                 </ul>
