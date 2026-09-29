@@ -29,6 +29,12 @@ const tools = [
     tag: 'Combinatorics · Interactive',
   },
   {
+    title: 'KombOpt Kompass',
+    description: 'An interactive compass for combinatorial optimization. Based on and made for the lecture by Volker Kaibel.',
+    href: '/tools/komboki',
+    tag: 'Combinatorial Optimization · Interactive',
+  },
+  {
     title: 'More tools coming',
     description: 'Additional interactive visualizations and mathematical explorations will appear here over time.',
     tag: 'Coming soon',
